@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>TWD Auto Billing V2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&family=Mitr:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* ─── CSS Variables (same palette as V1) ──────── */
+:root {
+  --cream: #faf8f5; --white: #ffffff;
+  --fur-light: #f5f0e8; --fur-mid: #e8ddd0; --fur-warm: #d4c4b0;
+  --nose-deep: #c97a7a; --eye-deep: #4a8aaa;
+  --charcoal: #2d2d2d; --slate: #5a5a6a; --muted: #9a9aaa; --border: #e8e4de;
+  --green: #5a9a6a; --green-light: #e8f5ec; --green-deep: #3d7a50;
+  --blue-light: #e8f4f8; --red-light: #faeaea; --red: #a04040; --red-deep: #b91c1c;
+  --amber: #f59e0b; --amber-light: #fef3c7; --amber-deep: #92400e;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: 'Sarabun', sans-serif;
+  background: var(--cream);
+  min-height: 100vh;
+  color: var(--charcoal);
+}
+/* Paw print wallpaper */
+body::before {
+  content: '🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾';
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  font-size: 22px; letter-spacing: 8px; line-height: 52px; word-break: break-all;
+  opacity: 0.045; pointer-events: none; z-index: 0; padding: 10px; overflow: hidden;
+}
+
+/* ─── Layout shells ──── */
+.app { display: none; position: relative; z-index: 1; }
+.app.active { display: block; }
+
+.page-header {
+  background: var(--white); border-bottom: 1.5px solid var(--border);
+  padding: 12px 20px 10px; display: flex; align-items: center; gap: 12px;
+  position: sticky; top: 0; z-index: 10;
+}
+.back-btn {
+  background: none; border: none; cursor: pointer; padding: 0; margin-right: 4px;
+  display: flex; align-items: center; color: var(--muted); flex-shrink: 0;
+}
+.header-cat { width: 46px; height: 46px; flex-shrink: 0; }
+.header-title { font-family: 'Mitr', sans-serif; font-size: 17px; font-weight: 600; color: var(--charcoal); line-height: 1.2; }
+.header-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.content { background: var(--white); border-radius: 24px 24px 0 0; min-height: calc(100vh - 68px); padding: 24px 16px 48px; }
+
+/* ─── Steps bar ──── */
+.steps { display: flex; background: var(--white); padding: 0 20px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 68px; z-index: 9; }
+.step-item { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; }
+.step-item:not(:last-child)::after { content: ''; position: absolute; top: 14px; left: 60%; right: -40%; height: 2px; background: var(--border); z-index: 0; }
+.step-item.done:not(:last-child)::after { background: var(--green); }
+.step-dot { width: 28px; height: 28px; border-radius: 50%; background: var(--fur-mid); color: var(--muted); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; position: relative; z-index: 1; transition: all 0.2s; }
+.step-item.active .step-dot { background: var(--nose-deep); color: white; box-shadow: 0 0 0 4px rgba(201,122,122,0.2); }
+.step-item.done .step-dot { background: var(--green); color: white; }
+.step-label { font-size: 10px; color: var(--muted); margin-top: 4px; font-weight: 600; }
+.step-item.active .step-label { color: var(--nose-deep); }
+.step-item.done .step-label { color: var(--green); }
+
+/* ─── Screens ──── */
+.screen { display: none; }
+.screen.active { display: block; }
+.screen-title { font-family: 'Mitr', sans-serif; font-size: 21px; font-weight: 600; color: var(--charcoal); margin-bottom: 4px; }
+.screen-sub { font-size: 14px; color: var(--muted); margin-bottom: 20px; }
+
+/* ─── Buttons ──── */
+.btn-primary {
+  width: 100%; background: var(--charcoal); color: white; border: none;
+  border-radius: 16px; padding: 20px; font-size: 18px; font-weight: 800;
+  font-family: 'Sarabun', sans-serif; cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-primary:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-ai {
+  width: 100%; background: linear-gradient(135deg, var(--eye-deep), #2a6a8a); color: white;
+  border: none; border-radius: 16px; padding: 18px; font-size: 16px; font-weight: 800;
+  font-family: 'Sarabun', sans-serif; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; gap: 8px; box-shadow: 0 4px 16px rgba(74,138,170,0.3);
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-ai:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+.btn-ai:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-green {
+  background: linear-gradient(135deg, var(--green), var(--green-deep)); color: white;
+  border: none; border-radius: 16px; padding: 20px; font-size: 18px; font-weight: 800;
+  font-family: 'Sarabun', sans-serif; cursor: pointer; width: 100%;
+  box-shadow: 0 4px 16px rgba(90,154,106,0.3);
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-green:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+.btn-green:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-red {
+  background: linear-gradient(135deg, #b91c1c, #991b1b); color: white;
+  border: none; border-radius: 16px; padding: 20px; font-size: 18px; font-weight: 800;
+  font-family: 'Sarabun', sans-serif; cursor: pointer; width: 100%;
+  box-shadow: 0 4px 16px rgba(185,28,28,0.3);
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-red:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+.btn-red:active:not(:disabled) { transform: scale(0.98); }
+
+.btn-outline {
+  background: var(--white); border: 1.5px solid var(--border); border-radius: 14px;
+  padding: 14px; font-size: 15px; font-weight: 600; color: var(--slate);
+  font-family: 'Sarabun', sans-serif; cursor: pointer; width: 100%;
+}
+
+/* ─── Camera / upload ──── */
+.cam-btn { width: 100%; border: none; border-radius: 20px; padding: 0; cursor: pointer; position: relative; overflow: hidden; margin-bottom: 12px; display: block; transition: transform 0.1s; }
+.cam-btn:active { transform: scale(0.98); }
+.cam-btn input[type=file] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; z-index: 2; }
+.cam-inner { background: var(--fur-light); border-radius: 20px; padding: 28px 20px; text-align: center; border: 2px dashed var(--fur-warm); transition: all 0.2s; }
+.cam-btn.has-file .cam-inner { border-color: var(--green); background: var(--green-light); border-style: solid; }
+.cam-emoji { font-size: 48px; margin-bottom: 10px; display: block; }
+.cam-label { font-size: 17px; font-weight: 700; color: var(--charcoal); }
+.cam-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.cam-preview { width: 100%; max-height: 200px; object-fit: contain; border-radius: 14px; margin-top: 14px; display: none; }
+.cam-preview.visible { display: block; }
+.cam-done-badge { display: none; background: var(--green); color: white; font-size: 13px; font-weight: 700; padding: 4px 12px; border-radius: 20px; margin-top: 10px; width: fit-content; margin-left: auto; margin-right: auto; }
+.cam-btn.has-file .cam-done-badge { display: block; }
+.cam-btn.has-file .cam-sub { display: none; }
+
+.gallery-btn { width: 100%; background: var(--white); border: 1.5px solid var(--border); border-radius: 14px; padding: 14px; font-size: 15px; font-weight: 600; color: var(--slate); font-family: 'Sarabun', sans-serif; cursor: pointer; position: relative; overflow: hidden; text-align: center; margin-bottom: 20px; display: block; }
+.gallery-btn input[type=file] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.or-divider { text-align: center; color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
+
+/* ─── Form fields ──── */
+.field-group { margin-bottom: 16px; }
+.field-label { font-size: 13px; font-weight: 700; color: var(--slate); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: block; }
+.field-input { width: 100%; padding: 16px; border: 2px solid var(--border); border-radius: 14px; font-size: 16px; font-family: 'Sarabun', sans-serif; color: var(--charcoal); background: var(--white); transition: border-color 0.2s; -webkit-appearance: none; }
+.field-input:focus { outline: none; border-color: var(--eye-deep); }
+.field-input.ai-filled { border-color: var(--green); background: var(--green-light); }
+select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%239a9aaa' d='M8 11L2 5h12z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 44px; }
+
+/* ─── Status boxes ──── */
+.status-box { border-radius: 14px; padding: 14px 16px; font-size: 14px; font-weight: 600; margin-bottom: 16px; display: none; align-items: flex-start; gap: 10px; line-height: 1.5; }
+.status-box.info { background: var(--blue-light); color: var(--eye-deep); display: flex; }
+.status-box.success { background: var(--green-light); color: var(--green-deep); display: flex; }
+.status-box.error { background: var(--red-light); color: var(--red); display: flex; }
+.status-box.warn { background: var(--amber-light); color: var(--amber-deep); display: flex; }
+.status-icon { font-size: 20px; flex-shrink: 0; }
+
+/* ─── Spinner ──── */
+.spinner { width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Tags / chips ──── */
+.chip { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+.chip-green { background: var(--green-light); color: var(--green-deep); }
+.chip-red { background: #fee2e2; color: #b91c1c; }
+.chip-amber { background: var(--amber-light); color: var(--amber-deep); }
+.chip-blue { background: var(--blue-light); color: var(--eye-deep); }
+
+/* ─── Pending cards ──── */
+.pending-card {
+  background: var(--white); border: 1.5px solid var(--border); border-radius: 16px;
+  padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.pending-card.status-paid   { border-left: 4px solid var(--green); }
+.pending-card.status-overdue { border-left: 4px solid var(--red-deep); }
+.pending-card.status-pending { border-left: 4px solid var(--amber); }
+.pending-store { font-size: 16px; font-weight: 800; color: var(--charcoal); margin-bottom: 4px; }
+.pending-meta  { font-size: 12px; color: var(--slate); margin-bottom: 10px; }
+.pending-actions { display: flex; gap: 8px; }
+.pending-actions button {
+  flex: 1; border: none; border-radius: 12px; padding: 10px; font-size: 14px;
+  font-weight: 700; font-family: 'Sarabun', sans-serif; cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.pending-actions button:active { transform: scale(0.97); }
+.btn-pay { background: var(--green-light); color: var(--green-deep); }
+.btn-overdue-sm { background: #fee2e2; color: #b91c1c; }
+
+/* ─── Summary / record cards ──── */
+.record-card { background: white; border-radius: 18px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 20px; }
+.record-card-header { padding: 12px 16px; }
+.record-card-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.record-row { display: flex; align-items: flex-start; gap: 12px; }
+.record-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
+.record-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.record-val { font-size: 17px; font-weight: 800; color: var(--charcoal); margin-top: 2px; }
+.record-val.green { color: var(--green); }
+.record-val.red   { color: var(--red-deep); }
+.divider { height: 1px; background: var(--border); }
+
+/* ─── Success screen ──── */
+.success-screen { display: none; }
+.success-screen.show { display: block; }
+
+/* ─── Tab bar ──── */
+.tab-bar { display: flex; border-bottom: 1.5px solid var(--border); background: var(--white); }
+.tab-btn {
+  flex: 1; padding: 12px 6px; font-size: 13px; font-weight: 600;
+  font-family: 'Sarabun', sans-serif; background: none; border: none;
+  border-bottom: 2.5px solid transparent; color: var(--muted);
+  cursor: pointer; margin-bottom: -1.5px; transition: color 0.15s;
+}
+.tab-btn.active { border-bottom-color: var(--charcoal); color: var(--charcoal); font-weight: 700; }
+
+/* ─── Section headers ──── */
+.section-header { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+.section-blue { background: #dbeafe; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+.section-blue .section-header { color: #1d4ed8; }
+.section-green { background: #dcfce7; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+.section-green .section-header { color: #15803d; }
+
+/* ─── No data ──── */
+.no-data { text-align: center; color: var(--muted); padding: 48px 20px; font-size: 15px; }
+
+/* ─── Amount banner ──── */
+.amount-banner {
+  background: #f0fdf4; border: 2px solid #22c55e; border-radius: 14px;
+  padding: 16px; margin-bottom: 16px; text-align: center;
+}
+.amount-big { font-size: 32px; font-weight: 800; color: #16a34a; }
+.amount-label { font-size: 13px; color: var(--slate); font-weight: 600; }
+
+/* ─── Due date banner ──── */
+.due-banner {
+  background: linear-gradient(135deg, #fff1f2, #fce7e7);
+  border: 2px solid #fca5a5; border-radius: 16px;
+  padding: 18px 16px; margin-bottom: 16px; text-align: center;
+}
+.due-days { font-size: 48px; font-weight: 800; color: #b91c1c; line-height: 1; }
+.due-days-label { font-size: 13px; color: #94a3b8; margin-top: 4px; font-weight: 600; }
+.due-date-text { font-size: 15px; font-weight: 700; color: #64748b; margin-top: 6px; }
+
+/* ─── Store search result items ──── */
+.store-result-item {
+  background: var(--white); border: 1.5px solid var(--border); border-radius: 10px;
+  padding: 12px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s;
+}
+.store-result-item:active { border-color: var(--eye-deep); }
+.store-result-name { font-size: 14px; font-weight: 700; color: var(--charcoal); }
+.store-result-code { font-size: 12px; color: var(--slate); margin-top: 2px; }
+
+/* ─── Info box ──── */
+.info-box { background: var(--blue-light); border-radius: 14px; padding: 14px 16px; margin-bottom: 16px; }
+.info-row-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.info-field-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.info-field-val { font-size: 16px; font-weight: 800; color: var(--charcoal); margin-top: 2px; }
+.auto-chip { display: inline-block; background: var(--green-light); color: var(--green-deep); font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; margin-left: 6px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     🏠 HOME APP
+══════════════════════════════════════════════ -->
+<div id="homeApp" class="app active">
+
+  <!-- Header -->
+  <div class="page-header">
+    <svg class="header-cat" viewBox="0 0 46 46" fill="none">
+      <polygon points="5,17 11,4 16,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"/>
+      <polygon points="41,17 35,4 30,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"/>
+      <polygon points="7,16 11,7 15,16" fill="#e8c0c0" opacity="0.6"/>
+      <polygon points="39,16 35,7 31,16" fill="#e8c0c0" opacity="0.6"/>
+      <ellipse cx="23" cy="28" rx="18" ry="17" fill="#f5f0e8" stroke="#d4c4b0" stroke-width="1.1"/>
+      <ellipse cx="23" cy="26" rx="12" ry="11" fill="#faf8f4"/>
+      <ellipse cx="17" cy="24" rx="4" ry="3" fill="#7ab8d4"/>
+      <ellipse cx="29" cy="24" rx="4" ry="3" fill="#7ab8d4"/>
+      <ellipse cx="17" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"/>
+      <ellipse cx="29" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"/>
+      <circle cx="16.3" cy="23" r="0.9" fill="white" opacity="0.8"/>
+      <circle cx="28.3" cy="23" r="0.9" fill="white" opacity="0.8"/>
+      <polygon points="23,29 21.2,27.2 24.8,27.2" fill="#e8a0a0"/>
+      <path d="M21.2,30 Q23,31.8 24.8,30" stroke="#c97a7a" stroke-width="1" fill="none" stroke-linecap="round"/>
+      <line x1="4" y1="27" x2="17" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
+      <line x1="4" y1="30" x2="17" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
+      <line x1="42" y1="27" x2="29" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
+      <line x1="42" y1="30" x2="29" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
+    </svg>
+    <div>
+      <div class="header-title">ตะวันแดง DCM V2</div>
+      <div class="header-sub">ระบบอัตโนมัติ • Proactive Mode</div>
+    </div>
+    <!-- Add bill button -->
+    <button onclick="gotoAddBill()" style="margin-left:auto; background:var(--charcoal); color:white; border:none; border-radius:12px; padding:10px 16px; font-size:14px; font-weight:700; font-family:Sarabun,sans-serif; cursor:pointer; white-space:nowrap;">
+      ➕ เพิ่มบิล
+    </button>
+  </div>
+
+  <!-- Dashboard tabs -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="homeTabPending" onclick="switchHomeTab('pending')">⏳ Pending</button>
+    <button class="tab-btn" id="homeTabPaid"    onclick="switchHomeTab('paid')">✅ Paid</button>
+    <button class="tab-btn" id="homeTabOverdue" onclick="switchHomeTab('overdue')">😿 Overdue</button>
+  </div>
+
+  <div style="padding:16px 16px 48px; position:relative; z-index:1;">
+
+    <!-- Reload -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <div style="font-family:'Mitr',sans-serif; font-size:15px; font-weight:600; color:var(--charcoal);" id="homeTabTitle">📋 รายการ Pending วันนี้</div>
+      <button onclick="loadDashboard()" style="background:none; border:none; font-size:12px; color:var(--muted); cursor:pointer; font-family:Sarabun,sans-serif;">↻ โหลดใหม่</button>
+    </div>
+
+    <div id="homeStatus" class="status-box"></div>
+    <div id="homePendingList"></div>
+    <div id="homePaidList"    style="display:none;"></div>
+    <div id="homeOverdueList" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     ➕ ADD BILL APP — Pre-register flow
+══════════════════════════════════════════════ -->
+<div id="addBillApp" class="app">
+
+  <div class="page-header">
+    <button class="back-btn" onclick="goHome()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <svg class="header-cat" viewBox="0 0 46 46" fill="none">
+      <polygon points="5,17 11,4 16,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"/>
+      <polygon points="41,17 35,4 30,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"/>
+      <polygon points="7,16 11,7 15,16" fill="#e8c0c0" opacity="0.6"/>
+      <polygon points="39,16 35,7 31,16" fill="#e8c0c0" opacity="0.6"/>
+      <ellipse cx="23" cy="28" rx="18" ry="17" fill="#f5f0e8" stroke="#d4c4b0" stroke-width="1.1"/>
+      <ellipse cx="23" cy="26" rx="12" ry="11" fill="#faf8f4"/>
+      <ellipse cx="17" cy="24" rx="4" ry="3" fill="#7ab8d4"/>
+      <ellipse cx="29" cy="24" rx="4" ry="3" fill="#7ab8d4"/>
+      <ellipse cx="17" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"/>
+      <ellipse cx="29" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"/>
+      <circle cx="16.3" cy="23" r="0.9" fill="white" opacity="0.8"/>
+      <circle cx="28.3" cy="23" r="0.9" fill="white" opacity="0.8"/>
+      <polygon points="23,29 21.2,27.2 24.8,27.2" fill="#e8a0a0"/>
+      <path d="M21.2,30 Q23,31.8 24.8,30" stroke="#c97a7a" stroke-width="1" fill="none" stroke-linecap="round"/>
+      <line x1="4" y1="27" x2="17" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
+      <line x1="4" y1="30" x2="17" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
+      <line x1="42" y1="27" x2="29" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
+      <line x1="42" y1="30" x2="29" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
+    </svg>
+    <div>
+      <div class="header-title">เพิ่มบิลใหม่</div>
+      <div class="header-sub">ลงทะเบียนบิลก่อนรับเงิน</div>
+    </div>
+  </div>
+
+  <!-- Steps: 1 Bill → 2 Confirm -->
+  <div class="steps">
+    <div class="step-item active" id="ab_si1"><div class="step-dot">1</div><div class="step-label">ถ่ายบิล</div></div>
+    <div class="step-item" id="ab_si2"><div class="step-dot">2</div><div class="step-label">ยืนยัน</div></div>
+    <div class="step-item" id="ab_si3"><div class="step-dot">✓</div><div class="step-label">บันทึก</div></div>
+  </div>
+
+  <!-- ── AB Screen 1: Take bill photo ── -->
+  <div class="screen active" id="abScreen1">
+    <div class="content">
+      <div class="screen-title">📄 ถ่ายรูปใบส่งสินค้า</div>
+      <div class="screen-sub">ถ่ายบิลแล้วให้ AI อ่าน หรือกรอกเองด้านล่าง</div>
+
+      <label class="cam-btn" id="abBillCamBtn">
+        <input type="file" id="abBillFile" accept="image/*">
+        <div class="cam-inner">
+          <span class="cam-emoji">📷</span>
+          <div class="cam-label">เปิดกล้องถ่ายใบส่งสินค้า</div>
+          <div class="cam-sub">กดที่นี่เพื่อเปิดกล้อง</div>
+          <img class="cam-preview" id="abBillPreview">
+          <div class="cam-done-badge">✅ ได้รับภาพแล้ว — กดอ่านด้านล่าง</div>
+        </div>
+      </label>
+      <div class="or-divider">— หรือเลือกจากรูปในโทรศัพท์ —</div>
+      <label class="gallery-btn">
+        <input type="file" id="abBillFileGallery" accept="image/*">
+        🖼️ เลือกรูปจากคลัง
+      </label>
+
+      <div id="abStatusBill" class="status-box"></div>
+
+      <div style="display:flex; gap:10px; margin-top:4px;">
+        <button class="btn-ai" id="abReadBillBtn" disabled onclick="abReadBillWithAI()" style="flex:1; font-size:15px; padding:16px 8px;">
+          🤖 AI อ่านบิล
+        </button>
+        <button onclick="abGoManual()" style="flex:1; background:linear-gradient(135deg,#0000f9,#86007d); color:white; border:none; border-radius:16px; padding:16px 8px; font-size:15px; font-weight:800; font-family:Sarabun,sans-serif; cursor:pointer; box-shadow:0 4px 16px rgba(134,0,125,0.35);">
+          ✏️ กรอกเอง
+        </button>
+      </div>
+      <button class="btn-primary" id="abNextBtn1" disabled onclick="abGoStep(2)" style="margin-top:12px;">ตรวจสอบ & บันทึก →</button>
+    </div>
+  </div>
+
+  <!-- ── AB Screen 2: Confirm & save ── -->
+  <div class="screen" id="abScreen2">
+    <div class="content">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+        <button onclick="abGoStep(1)" style="background:none; border:none; font-size:24px; cursor:pointer; padding:0;">←</button>
+        <div class="screen-title" style="margin-bottom:0;">✅ ยืนยันข้อมูลบิล</div>
+      </div>
+      <div class="screen-sub" id="abScreen2Sub">กรุณาตรวจสอบก่อนบันทึก</div>
+      <div id="abStatusConfirm" class="status-box"></div>
+
+      <!-- Manual store search (shown when no AI data) -->
+      <div id="abManualSearchBox" style="display:none; background:var(--fur-light); border-radius:14px; padding:16px; margin-bottom:16px;">
+        <div style="font-size:13px; font-weight:800; color:var(--eye-deep); margin-bottom:10px;">🔍 ค้นหาร้านค้า</div>
+        <input type="text" id="abManualSearchInput" class="field-input" placeholder="พิมพ์ชื่อหรือรหัสร้านค้า..." oninput="abSearchStore(this.value)" autocomplete="off">
+        <div id="abManualSearchResults" style="margin-top:8px;"></div>
+      </div>
+
+      <!-- AI section -->
+      <div class="section-blue">
+        <div class="section-header" style="color:#1d4ed8;" id="abAiLabel">🤖 AI อ่านจากบิล</div>
+
+        <div class="field-group">
+          <label class="field-label">วันที่บิล (Invoice Date)</label>
+          <input type="date" class="field-input ai-filled" id="ab_invoice_date">
+        </div>
+        <div class="field-group">
+          <label class="field-label">ศูนย์กระจายสินค้า</label>
+          <select class="field-input ai-filled" id="ab_dc_name">
+            <option value="">-- เลือก DC --</option>
+            <option value="วัดกู้">วัดกู้</option>
+            <option value="บางพลี">บางพลี</option>
+            <option value="พระราม 3">พระราม 3</option>
+            <option value="ชลบุรี">ชลบุรี</option>
+            <option value="เชียงใหม่">เชียงใหม่</option>
+          </select>
+        </div>
+        <div id="abStoreCodeGroup" class="field-group">
+          <label class="field-label">รหัสร้านค้า</label>
+          <input type="text" class="field-input ai-filled" id="ab_store_code" placeholder="เช่น V10250-6800630007"
+            onblur="if(this.value.length>5) abLookupStoreName(this.value)">
+        </div>
+        <div class="field-group" style="margin-bottom:0;">
+          <label class="field-label">ยอดบิล (บาท)</label>
+          <input type="text" inputmode="decimal" class="field-input ai-filled" id="ab_bill_amount" placeholder="เช่น 4800.00"
+            style="font-size:22px; font-weight:800; color:#16a34a;">
+        </div>
+      </div>
+
+      <!-- Store name from ตะวันแดง -->
+      <div class="section-green">
+        <div class="section-header" style="color:#15803d;">🏪 ดึงจากระบบตะวันแดง</div>
+        <div class="field-group" style="margin-bottom:0;">
+          <label class="field-label">ชื่อร้านค้า</label>
+          <input type="text" class="field-input ai-filled" id="ab_store_name" placeholder="กำลังค้นหา...">
+        </div>
+      </div>
+
+      <button class="btn-green" id="abSaveBtn" onclick="abSavePending()">💾 บันทึกลง Pending</button>
+    </div>
+  </div>
+
+  <!-- ── AB Success ── -->
+  <div class="success-screen" id="abSuccessScreen">
+    <div class="content" style="padding-top:40px;">
+      <div style="text-align:center; margin-bottom:24px;">
+        <div style="font-size:72px; margin-bottom:10px;">📋</div>
+        <div style="font-size:26px; font-weight:800; color:var(--charcoal); margin-bottom:4px;">บันทึกแล้ว!</div>
+        <div style="font-size:14px; color:var(--slate);">บิลอยู่ใน Pending — รอรับเงิน</div>
+      </div>
+      <div class="record-card">
+        <div class="record-card-header" style="background:var(--charcoal);">
+          <div style="font-size:11px; font-weight:800; color:rgba(255,255,255,0.7); letter-spacing:1px; text-transform:uppercase;">บิลที่บันทึก 🐾</div>
+        </div>
+        <div class="record-card-body">
+          <div class="record-row"><div class="record-icon">🏪</div><div><div class="record-label">ร้านค้า</div><div class="record-val" id="ab_rec_store">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">🏢</div><div><div class="record-label">DC</div><div class="record-val" id="ab_rec_dc">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">💰</div><div><div class="record-label">ยอดบิล</div><div class="record-val green" id="ab_rec_amount">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">📅</div><div><div class="record-label">วันที่บิล</div><div class="record-val" id="ab_rec_date">—</div></div></div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="abAddAnother()">➕ เพิ่มบิลอื่น</button>
+      <button class="btn-outline" onclick="goHome()" style="margin-top:10px;">🏠 กลับหน้า Dashboard</button>
+    </div>
+  </div>
+
+</div><!-- end addBillApp -->
+
+<!-- ══════════════════════════════════════════════
+     💳 PAY SLIP APP — อัปสลิป for a pending item
+══════════════════════════════════════════════ -->
+<div id="paySlipApp" class="app">
+
+  <div class="page-header">
+    <button class="back-btn" onclick="goHome()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <div style="font-size:28px; margin-right:4px;">💳</div>
+    <div>
+      <div class="header-title" id="psHeaderStore">อัปโหลดสลิป</div>
+      <div class="header-sub">ตะวันแดง DCM • ส่งสลิปโอนเงิน</div>
+    </div>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step-item active" id="ps_si1"><div class="step-dot">1</div><div class="step-label">สลิป</div></div>
+    <div class="step-item" id="ps_si2"><div class="step-dot">✓</div><div class="step-label">ส่ง</div></div>
+  </div>
+
+  <!-- ── PS Screen 1: Upload slip ── -->
+  <div class="screen active" id="psScreen1">
+    <div class="content">
+      <div class="screen-title">💳 อัปโหลดสลิปโอนเงิน</div>
+
+      <!-- Amount cross-check banner -->
+      <div class="amount-banner" style="margin-bottom:16px;">
+        <div class="amount-label">ยอดชำระตามบิล</div>
+        <div class="amount-big" id="psBillAmtDisplay">฿0.00</div>
+        <div style="font-size:12px; color:var(--slate); margin-top:4px;" id="psBannerSub">อัปโหลดสลิปเพื่อตรวจสอบยอด</div>
+      </div>
+
+      <!-- Slip AI check result -->
+      <div id="psSlipCheckBox" style="display:none; border-radius:14px; padding:14px 16px; margin-bottom:14px; font-size:15px; font-weight:700;"></div>
+
+      <label class="cam-btn" id="psSlipCamBtn">
+        <input type="file" id="psSlipFile" accept="image/*">
+        <div class="cam-inner">
+          <span class="cam-emoji">🧾</span>
+          <div class="cam-label">เปิดกล้องถ่ายสลิป</div>
+          <div class="cam-sub">กดที่นี่เพื่อเปิดกล้อง</div>
+          <img class="cam-preview" id="psSlipPreview">
+          <div class="cam-done-badge">✅ ได้รับสลิปแล้ว</div>
+        </div>
+      </label>
+      <div class="or-divider">— หรือเลือกจากรูปในโทรศัพท์ —</div>
+      <label class="gallery-btn">
+        <input type="file" id="psSlipFileGallery" accept="image/*">
+        🖼️ เลือกรูปจากคลัง (เช่น screenshot จาก KBIZ)
+      </label>
+
+      <div id="psStatus" class="status-box"></div>
+      <button class="btn-green" id="psSubmitBtn" disabled onclick="psSubmit()">✅ ส่งสลิปไปตะวันแดง</button>
+    </div>
+  </div>
+
+  <!-- ── PS Success ── -->
+  <div class="success-screen" id="psSuccessScreen">
+    <div class="content" style="padding-top:40px;">
+      <div style="text-align:center; margin-bottom:24px;">
+        <div style="font-size:72px; margin-bottom:10px;">🎉</div>
+        <div style="font-size:26px; font-weight:800; color:var(--charcoal); margin-bottom:4px;">ส่งสำเร็จแล้ว!</div>
+        <div style="font-size:14px; color:var(--slate);">ข้อมูลถูกส่งไปยังตะวันแดง DCM เรียบร้อย</div>
+      </div>
+      <div class="record-card">
+        <div class="record-card-header" style="background:var(--charcoal);">
+          <div style="font-size:11px; font-weight:800; color:rgba(255,255,255,0.7); letter-spacing:1px; text-transform:uppercase;">บันทึกการชำระ 🐾</div>
+        </div>
+        <div class="record-card-body">
+          <div class="record-row"><div class="record-icon">🏪</div><div><div class="record-label">ร้านค้า</div><div class="record-val" id="ps_rec_store">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">🏢</div><div><div class="record-label">DC</div><div class="record-val" id="ps_rec_dc">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">💰</div><div><div class="record-label">ยอดชำระ</div><div class="record-val green" id="ps_rec_amount">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">🕐</div><div><div class="record-label">เวลาที่ส่ง</div><div class="record-val" id="ps_rec_time">—</div></div></div>
+        </div>
+      </div>
+      <button class="btn-outline" onclick="goHome()" style="margin-top:4px;">🏠 กลับหน้า Dashboard</button>
+    </div>
+  </div>
+
+</div><!-- end paySlipApp -->
+
+<!-- ══════════════════════════════════════════════
+     😿 OVERDUE APP — Mark overdue for a pending item
+══════════════════════════════════════════════ -->
+<div id="overdueApp" class="app">
+
+  <div class="page-header">
+    <button class="back-btn" onclick="goHome()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <div style="font-size:28px; margin-right:4px;">😿</div>
+    <div>
+      <div class="header-title" id="ovHeaderStore">บันทึกค้างชำระ</div>
+      <div class="header-sub">ตะวันแดง DCM • ระบบติดตามหนี้</div>
+    </div>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step-item active" id="ov_si1"><div class="step-dot">1</div><div class="step-label">ตั้งค่า</div></div>
+    <div class="step-item" id="ov_si2"><div class="step-dot">2</div><div class="step-label">ยืนยัน</div></div>
+    <div class="step-item" id="ov_si3"><div class="step-dot">✓</div><div class="step-label">ส่ง</div></div>
+  </div>
+
+  <!-- ── OV Screen 1: Configure overdue ── -->
+  <div class="screen active" id="ovScreen1">
+    <div class="content">
+      <div class="screen-title">😿 บันทึกค้างชำระ</div>
+      <div class="screen-sub" id="ovScreen1Sub">ตั้งค่าวันครบกำหนดสำหรับร้านนี้</div>
+
+      <!-- Store info card (auto-filled from Pending) -->
+      <div style="background:#dcfce7; border-radius:14px; padding:16px; margin-bottom:16px; border:1.5px solid #86efac;">
+        <div style="font-size:11px; font-weight:800; color:#15803d; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px;">🏪 ร้านค้า</div>
+        <div style="font-size:19px; font-weight:800; color:var(--charcoal);" id="ovStoreName">—</div>
+        <div style="font-size:13px; color:var(--slate); margin-top:3px;" id="ovStoreCode">—</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
+          <div>
+            <div class="info-field-label">DC</div>
+            <div style="font-size:15px; font-weight:800; color:var(--charcoal);" id="ovDcName">—</div>
+          </div>
+          <div>
+            <div class="info-field-label">ยอดบิล</div>
+            <div style="font-size:15px; font-weight:800; color:#16a34a;" id="ovBillAmt">—</div>
+          </div>
+          <div>
+            <div class="info-field-label">Invoice Date</div>
+            <div style="font-size:15px; font-weight:800;" id="ovInvoiceDate">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Staff selector -->
+      <div class="field-group">
+        <label class="field-label">พนักงานขาย <span class="chip chip-red">required</span></label>
+        <select class="field-input" id="ovStaffSelect" onchange="ovFillStaff(this.value)">
+          <option value="">-- เลือกพนักงาน --</option>
+          <option value="จันโรจน์">จันโรจน์ พงศ์อายุกูล</option>
+        </select>
+      </div>
+
+      <!-- Staff auto-fill info -->
+      <div id="ovStaffInfo" style="display:none;" class="info-box">
+        <div style="font-size:11px; font-weight:800; color:var(--eye-deep); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:10px;">👤 ข้อมูลพนักงาน <span class="auto-chip">Auto-fill</span></div>
+        <div class="info-row-inner">
+          <div><div class="info-field-label">ชื่อเล่น</div><div class="info-field-val" id="ovNickname">—</div></div>
+          <div><div class="info-field-label">Line ID</div><div class="info-field-val" id="ovLineId">—</div></div>
+          <div style="grid-column:1/-1;"><div class="info-field-label">พื้นที่การขาย</div><div class="info-field-val" id="ovArea">—</div></div>
+        </div>
+      </div>
+
+      <!-- Days overdue -->
+      <div class="field-group">
+        <label class="field-label">จำนวนวันจ่ายช้า</label>
+        <select class="field-input" id="ovDaysLate" onchange="ovCalcDue()">
+          <option value="">-- เลือก --</option>
+          <option value="1">1 วัน</option>
+          <option value="2">2 วัน</option>
+          <option value="3">3 วัน</option>
+          <option value="4">4 วัน</option>
+        </select>
+      </div>
+
+      <!-- Calculated due date -->
+      <div id="ovDueCalcDisplay" style="display:none; background:var(--amber-light); border-radius:12px; padding:10px 14px; font-size:14px; color:var(--amber-deep); margin-bottom:16px; font-weight:700;">
+        📅 Payment Due Date: <b id="ovDueCalcDate">—</b>
+      </div>
+
+      <div id="ovStatus1" class="status-box"></div>
+      <button class="btn-primary" id="ovNext1" disabled onclick="ovGoStep(2)">ยืนยัน →</button>
+    </div>
+  </div>
+
+  <!-- ── OV Screen 2: Review & submit ── -->
+  <div class="screen" id="ovScreen2">
+    <div class="content">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+        <button onclick="ovGoStep(1)" style="background:none; border:none; font-size:24px; cursor:pointer; padding:0;">←</button>
+        <div class="screen-title" style="margin-bottom:0;">🔍 ยืนยันข้อมูล</div>
+      </div>
+
+      <!-- Due date banner -->
+      <div class="due-banner">
+        <div style="font-size:12px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:6px;">📅 วันครบกำหนดชำระ</div>
+        <div class="due-days" id="ovDueDaysNum">—</div>
+        <div class="due-days-label">วันหลังจากวันที่บิล</div>
+        <div class="due-date-text" id="ovDueDateDisplay">—</div>
+      </div>
+
+      <!-- Summary -->
+      <div class="record-card">
+        <div class="record-card-header" style="background:var(--charcoal);">
+          <div style="font-size:11px; font-weight:800; color:rgba(255,255,255,0.65); letter-spacing:1px; text-transform:uppercase;">รายละเอียดค้างชำระ 😿</div>
+        </div>
+        <div class="record-card-body">
+          <div class="record-row"><div class="record-icon">🏪</div><div><div class="record-label">ร้านค้า</div><div class="record-val" id="ov_rec_store">—</div><div style="font-size:12px; color:var(--slate); margin-top:2px;" id="ov_rec_code">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">👤</div><div><div class="record-label">พนักงาน</div><div class="record-val" id="ov_rec_staff">—</div><div style="font-size:12px; color:var(--slate); margin-top:2px;" id="ov_rec_staff_sub">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">🏢</div><div><div class="record-label">DC</div><div class="record-val" id="ov_rec_dc">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">💰</div><div><div class="record-label">ยอดค้างชำระ</div><div class="record-val red" id="ov_rec_amount">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">📄</div><div><div class="record-label">Invoice Date</div><div class="record-val" id="ov_rec_invoice">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">📅</div><div><div class="record-label">Payment Due Date</div><div class="record-val red" id="ov_rec_due">—</div></div></div>
+        </div>
+      </div>
+
+      <div id="ovStatus2" class="status-box"></div>
+      <button class="btn-red" id="ovSubmitBtn" onclick="ovSubmit()">😿 ส่งข้อมูลค้างชำระ</button>
+    </div>
+  </div>
+
+  <!-- ── OV Success ── -->
+  <div class="success-screen" id="ovSuccessScreen">
+    <div class="content" style="padding-top:40px;">
+      <div style="text-align:center; margin-bottom:24px;">
+        <div style="font-size:72px; margin-bottom:10px;">📋</div>
+        <div style="font-size:26px; font-weight:800; color:var(--charcoal); margin-bottom:4px;">บันทึกสำเร็จ!</div>
+        <div style="font-size:14px; color:var(--slate);">ข้อมูลค้างชำระถูกส่งเรียบร้อยแล้ว</div>
+      </div>
+      <div class="record-card">
+        <div class="record-card-header" style="background:#b91c1c;">
+          <div style="font-size:11px; font-weight:800; color:rgba(255,255,255,0.75); letter-spacing:1px; text-transform:uppercase;">บันทึกค้างชำระ 😿</div>
+        </div>
+        <div class="record-card-body">
+          <div class="record-row"><div class="record-icon">🏪</div><div><div class="record-label">ร้านค้า</div><div class="record-val" id="ov_succ_store">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">💰</div><div><div class="record-label">ยอดค้าง</div><div class="record-val red" id="ov_succ_amount">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">📅</div><div><div class="record-label">ครบกำหนด</div><div class="record-val" id="ov_succ_due">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">🕐</div><div><div class="record-label">บันทึกเมื่อ</div><div class="record-val" id="ov_succ_time">—</div></div></div>
+        </div>
+      </div>
+      <button class="btn-outline" onclick="goHome()" style="margin-top:4px;">🏠 กลับหน้า Dashboard</button>
+    </div>
+  </div>
+
+</div><!-- end overdueApp -->
+
+<!-- ══════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════ -->
+<script>
+// ⚠️ Replace with your V2 Google Apps Script URL after deploying
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxaaA7cVhsExjQEEFW8jA-CDt_cufi_VL3lUFcOugf6NJQ7qTqN5WuNhaVEzdUrPTI/exec";
+
+const TARGET_SUBMIT_URL = "https://n8n-01.carabao.co.th/api/submit-delivery-form";
+const OVERDUE_SUBMIT_URL = "https://n8n-01.carabao.co.th/api/submit-overdue-form";
+
+const STAFF_DATA = {
+  'จันโรจน์': { fullName: 'จันโรจน์ พงศ์อายุกูล', nickname: 'จี๋', position: 'CEO Office', area: 'ตะวันออก', lineId: 'juggajejee' }
+};
+
+const DC_OPTIONS = ['วัดกู้', 'บางพลี', 'พระราม 3', 'ชลบุรี', 'เชียงใหม่'];
+
+// ─── App state ───
+let currentPendingItem = null; // the Pending row being acted on
+let psSlipBase64 = null;
+let psSlipMime = null;
+let psSlipAmount = '';
+let ovState = {};
+let abBillBase64 = null;
+let abBillMime = null;
+let abIsManual = false;
+let homeTab = 'pending';
+
+// ─── App switching ───
+function showApp(id) {
+  document.querySelectorAll('.app').forEach(a => a.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function goHome() {
+  showApp('homeApp');
+  loadDashboard();
+}
+
+function gotoAddBill() {
+  abReset();
+  showApp('addBillApp');
+}
+
+// ─── Format helpers ───
+function fmtDate(str) {
+  if (!str || str === 'TEST') return '—';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split('-');
+    return `${d}/${m}/${y}`;
+  }
+  try {
+    const d = new Date(str);
+    if (!isNaN(d)) return d.toLocaleDateString('th-TH', { day:'2-digit', month:'2-digit', year:'numeric' });
+  } catch(e) {}
+  return str;
+}
+function fmtTime(str) {
+  if (!str || str === 'TEST') return '—';
+  if (str.includes('/')) return str;
+  try {
+    const d = new Date(str);
+    if (!isNaN(d)) return d.toLocaleDateString('th-TH', { day:'2-digit', month:'2-digit', year:'numeric' })
+      + ' ' + d.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
+  } catch(e) {}
+  return str;
+}
+function fmtAmt(val) {
+  if (!val && val !== 0) return '฿0.00';
+  const n = parseFloat(val.toString().replace(/[฿,\s]/g, ''));
+  return (!isNaN(n) && n > 0) ? '฿' + n.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '฿0.00';
+}
+function nowStamp() {
+  const d = new Date();
+  return d.toLocaleDateString('th-TH', { day:'2-digit', month:'2-digit', year:'numeric' })
+    + ' ' + d.toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
+}
+
+// ─── Status helpers ───
+function showStatus(boxId, type, html) {
+  const el = document.getElementById(boxId);
+  if (!el) return;
+  const icons = { info:'⏳', success:'✅', error:'❌', warn:'⚠️' };
+  el.className = 'status-box ' + type;
+  el.innerHTML = `<span class="status-icon">${icons[type]||'ℹ️'}</span><span>${html}</span>`;
+}
+function clearStatus(boxId) {
+  const el = document.getElementById(boxId);
+  if (el) { el.className = 'status-box'; el.innerHTML = ''; }
+}
+
+// ══════════════════════════════════════════════
+// HOME DASHBOARD
+// ══════════════════════════════════════════════
+let dashboardData = { pending: [], paid: [], overdue: [] };
+
+function switchHomeTab(tab) {
+  homeTab = tab;
+  ['pending','paid','overdue'].forEach(t => {
+    const btn = document.getElementById('homeTab' + t.charAt(0).toUpperCase() + t.slice(1));
+    if (btn) btn.className = 'tab-btn' + (t === tab ? ' active' : '');
+    const pane = document.getElementById('home' + t.charAt(0).toUpperCase() + t.slice(1) + 'List');
+    if (pane) pane.style.display = t === tab ? 'block' : 'none';
+  });
+  const titles = { pending: '⏳ Pending', paid: '✅ Paid (3 วัน)', overdue: '😿 Overdue (3 วัน)' };
+  document.getElementById('homeTabTitle').textContent = titles[tab] || '';
+  renderDashboard();
+}
+
+async function loadDashboard() {
+  showStatus('homeStatus', 'info', 'กำลังโหลด...');
+  try {
+    const res = await fetch(GAS_URL + '?action=getPending');
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    threeDaysAgo.setHours(0, 0, 0, 0);
+
+    dashboardData.pending  = data.filter(r => r.status === 'pending');
+    dashboardData.paid     = data.filter(r => r.status === 'paid' && isRecent(r.updated_at, threeDaysAgo));
+    dashboardData.overdue  = data.filter(r => r.status === 'overdue' && isRecent(r.updated_at, threeDaysAgo));
+
+    clearStatus('homeStatus');
+    renderDashboard();
+  } catch(err) {
+    showStatus('homeStatus', 'error', 'โหลดไม่ได้: ' + err.message);
+  }
+}
+
+function isRecent(tsStr, since) {
+  if (!tsStr) return true;
+  try { const d = new Date(tsStr); return !isNaN(d) && d >= since; } catch(e) { return true; }
+}
+
+function renderDashboard() {
+  renderPendingList();
+  renderPaidList();
+  renderOverdueList();
+}
+
+function renderPendingList() {
+  const el = document.getElementById('homePendingList');
+  const items = dashboardData.pending;
+  if (!items.length) {
+    el.innerHTML = '<div class="no-data">🐾 ไม่มีรายการ Pending<br>กด ➕ เพิ่มบิล เพื่อเริ่ม</div>';
+    return;
+  }
+  el.innerHTML = items.map(r => `
+    <div class="pending-card status-pending">
+      <div class="pending-store">${r.store_name || '—'}</div>
+      <div class="pending-meta">
+        <span class="chip chip-blue">${r.dc_name || '—'}</span>
+        &nbsp; ${fmtDate(r.invoice_date)} &nbsp;•&nbsp; ${fmtAmt(r.bill_amount)}
+      </div>
+      <div class="pending-actions">
+        <button class="btn-pay" onclick='startPaySlip(${JSON.stringify(r)})'>💚 อัปสลิป</button>
+        <button class="btn-overdue-sm" onclick='startOverdue(${JSON.stringify(r)})'>🔴 ค้างชำระ</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderPaidList() {
+  const el = document.getElementById('homePaidList');
+  const items = dashboardData.paid;
+  if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Paid ใน 3 วัน</div>'; return; }
+  el.innerHTML = items.reverse().map(r => `
+    <div class="pending-card status-paid">
+      <div class="pending-store">${r.store_name || '—'}</div>
+      <div style="font-size:12px; color:var(--slate); margin-bottom:4px;">
+        <span class="chip chip-green">✅ Paid</span>
+        &nbsp; ${fmtDate(r.invoice_date)} &nbsp;•&nbsp; ${fmtAmt(r.bill_amount)}
+      </div>
+      <div style="font-size:11px; color:var(--muted);">บันทึก: ${fmtTime(r.updated_at)}</div>
+    </div>
+  `).join('');
+}
+
+function renderOverdueList() {
+  const el = document.getElementById('homeOverdueList');
+  const items = dashboardData.overdue;
+  if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Overdue ใน 3 วัน</div>'; return; }
+  el.innerHTML = items.reverse().map(r => `
+    <div class="pending-card status-overdue">
+      <div class="pending-store">${r.store_name || '—'}</div>
+      <div style="font-size:12px; color:var(--slate); margin-bottom:4px;">
+        <span class="chip chip-red">😿 Overdue</span>
+        &nbsp; ${fmtDate(r.invoice_date)} &nbsp;•&nbsp; ${fmtAmt(r.bill_amount)}
+      </div>
+      <div style="font-size:11px; color:var(--muted);">บันทึก: ${fmtTime(r.updated_at)}</div>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════
+// ADD BILL — Pre-register flow
+// ══════════════════════════════════════════════
+function abReset() {
+  abBillBase64 = null; abBillMime = null; abIsManual = false;
+  ['abBillFile','abBillFileGallery'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  const prev = document.getElementById('abBillPreview'); if(prev){ prev.src=''; prev.classList.remove('visible'); }
+  document.getElementById('abBillCamBtn').classList.remove('has-file');
+  document.getElementById('abReadBillBtn').disabled = true;
+  document.getElementById('abNextBtn1').disabled = true;
+  ['ab_invoice_date','ab_store_code','ab_store_name','ab_bill_amount'].forEach(id => {
+    const el = document.getElementById(id); if(el){ el.value=''; el.classList.remove('ai-filled'); }
+  });
+  const dc = document.getElementById('ab_dc_name'); if(dc){ dc.value=''; dc.classList.remove('ai-filled'); }
+  clearStatus('abStatusBill');
+  clearStatus('abStatusConfirm');
+  document.getElementById('abManualSearchBox').style.display = 'none';
+  document.getElementById('abManualSearchInput') && (document.getElementById('abManualSearchInput').value = '');
+  document.getElementById('abManualSearchResults') && (document.getElementById('abManualSearchResults').innerHTML = '');
+  document.getElementById('abAiLabel').textContent = '🤖 AI อ่านจากบิล';
+  document.getElementById('abStoreCodeGroup').style.display = '';
+  document.getElementById('abSuccessScreen').classList.remove('show');
+  document.querySelectorAll('#addBillApp .screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('abScreen1').classList.add('active');
+  abStepUI(1);
+}
+
+function abStepUI(n) {
+  for (let i = 1; i <= 3; i++) {
+    const si = document.getElementById('ab_si' + i);
+    if (!si) continue;
+    si.classList.remove('active','done');
+    if (i < n) si.classList.add('done');
+    else if (i === n) si.classList.add('active');
+  }
+}
+
+function abGoStep(n) {
+  document.querySelectorAll('#addBillApp .screen').forEach(s => s.classList.remove('active'));
+  const sc = document.getElementById('abScreen' + n);
+  if (sc) sc.classList.add('active');
+  abStepUI(n);
+  window.scrollTo(0, 0);
+}
+
+function abGoManual() {
+  abIsManual = true;
+  ['ab_invoice_date','ab_store_code','ab_store_name','ab_bill_amount'].forEach(id => {
+    const el = document.getElementById(id); if(el){ el.value=''; el.classList.remove('ai-filled'); }
+  });
+  const dc = document.getElementById('ab_dc_name'); if(dc){ dc.value=''; dc.classList.remove('ai-filled'); }
+  document.getElementById('abManualSearchBox').style.display = 'block';
+  document.getElementById('abAiLabel').textContent = '✏️ กรอกข้อมูลด้วยตัวเอง';
+  document.getElementById('abStoreCodeGroup').style.display = 'none';
+  document.getElementById('abScreen2Sub').textContent = 'โหมดกรอกเอง — ค้นหาร้านค้า';
+  document.getElementById('abNextBtn1').disabled = false;
+  abGoStep(2);
+}
+
+// File listeners
+document.getElementById('abBillFile').addEventListener('change', e => abHandleBillFile(e.target.files[0]));
+document.getElementById('abBillFileGallery').addEventListener('change', e => abHandleBillFile(e.target.files[0]));
+
+function abHandleBillFile(file) {
+  if (!file) return;
+  abBillMime = file.type || 'image/jpeg';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    abBillBase64 = ev.target.result.split(',')[1];
+    document.getElementById('abBillPreview').src = ev.target.result;
+    document.getElementById('abBillPreview').classList.add('visible');
+    document.getElementById('abBillCamBtn').classList.add('has-file');
+    document.getElementById('abReadBillBtn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+const BILL_READ_PROMPT = `You are reading a Thai beer delivery bill (ใบส่งสินค้า) from บริษัท ตะวันแดง ดีซีเอ็ม.
+
+Extract these fields from the MAIN PRINTED BILL ONLY (ignore handwritten notes):
+1. delivery_date: Look for วันที่ near the header. Format DD/MM/YYYY Thai Buddhist year. Convert: subtract 543. e.g. 16/06/2569 → 2026-06-16
+2. store_code: Line labeled ลูกค้า, code like V10520-6804890002
+3. store_name: Business name on next line after customer code
+4. dc_name: From "พนักงานขาย:" line. Must be one of: วัดกู้, บางพลี, พระราม 3, ชลบุรี, เชียงใหม่
+5. amount: รวมทั้งสิ้น or จำนวนเงินที่ต้องชำระ — numbers only
+
+Return ONLY valid JSON:
+{"delivery_date":"YYYY-MM-DD","store_code":"V10520-...","store_name":"ชื่อร้าน","dc_name":"บางพลี","amount":"4800.00"}`;
+
+async function abReadBillWithAI() {
+  const btn = document.getElementById('abReadBillBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> AI กำลังอ่าน...';
+  showStatus('abStatusBill', 'info', 'AI กำลังอ่านใบส่งสินค้า กรุณารอสักครู่...');
+
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'readBill', image: abBillBase64, mimeType: abBillMime, prompt: BILL_READ_PROMPT })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+    const text = data.content?.[0]?.text || '';
+    const p = JSON.parse(text.replace(/```json|```/g, '').trim());
+
+    if (p.delivery_date) { document.getElementById('ab_invoice_date').value = p.delivery_date; document.getElementById('ab_invoice_date').classList.add('ai-filled'); }
+    if (p.amount) { document.getElementById('ab_bill_amount').value = p.amount; document.getElementById('ab_bill_amount').classList.add('ai-filled'); }
+    if (p.store_code) {
+      document.getElementById('ab_store_code').value = p.store_code;
+      document.getElementById('ab_store_code').classList.add('ai-filled');
+      setTimeout(() => abLookupStoreName(p.store_code), 400);
+    }
+    if (p.dc_name) {
+      const sel = document.getElementById('ab_dc_name');
+      const norm = p.dc_name.replace(/\s+/g, ' ').trim();
+      const matched = DC_OPTIONS.find(o => o === norm) || DC_OPTIONS.find(o => norm.includes(o) || o.includes(norm));
+      if (matched) { sel.value = matched; sel.classList.add('ai-filled'); }
+    }
+
+    showStatus('abStatusBill', 'success', `AI อ่านได้: วันที่ <b>${p.delivery_date||'—'}</b> | DC <b>${p.dc_name||'—'}</b> | รหัส <b>${p.store_code||'—'}</b> | ยอด <b>฿${p.amount||'—'}</b>`);
+    document.getElementById('abNextBtn1').disabled = false;
+  } catch(err) {
+    showStatus('abStatusBill', 'error', 'Error: ' + err.message);
+    document.getElementById('abNextBtn1').disabled = false;
+  }
+  btn.innerHTML = '🤖 ให้ AI อ่านอีกครั้ง';
+  btn.disabled = false;
+}
+
+async function abLookupStoreName(code) {
+  if (!code || code.length < 3) return;
+  document.getElementById('ab_store_name').value = 'กำลังค้นหา...';
+  try {
+    const res = await fetch(GAS_URL + '?action=storeSearch&q=' + encodeURIComponent(code));
+    const data = await res.json();
+    if (data && data.length > 0) {
+      const match = data.find(s => s.customer_code === code) || data[0];
+      document.getElementById('ab_store_name').value = match.customer_name;
+      document.getElementById('ab_store_name').classList.add('ai-filled');
+    } else {
+      document.getElementById('ab_store_name').value = '';
+      document.getElementById('ab_store_name').placeholder = 'ไม่พบ — กรอกเอง';
+    }
+  } catch(err) {
+    document.getElementById('ab_store_name').value = '';
+  }
+}
+
+async function abSearchStore(q) {
+  const resultsEl = document.getElementById('abManualSearchResults');
+  if (!q || q.length < 2) { resultsEl.innerHTML = ''; return; }
+  resultsEl.innerHTML = '<div style="color:var(--slate); font-size:13px; padding:8px;">🔍 กำลังค้นหา...</div>';
+  try {
+    const res = await fetch(GAS_URL + '?action=storeSearch&q=' + encodeURIComponent(q));
+    const data = await res.json();
+    if (!data || data.length === 0) { resultsEl.innerHTML = '<div style="color:var(--red); font-size:13px; padding:8px;">⚠️ ไม่พบร้านค้า</div>'; return; }
+    resultsEl.innerHTML = data.slice(0, 8).map(s => `
+      <div class="store-result-item" onclick="abSelectManualStore('${s.customer_code}','${s.customer_name.replace(/'/g,"\\'")}')">
+        <div class="store-result-name">${s.customer_name}</div>
+        <div class="store-result-code">${s.customer_code}</div>
+      </div>
+    `).join('');
+  } catch(err) {
+    resultsEl.innerHTML = '<div style="color:var(--red); font-size:13px; padding:8px;">⚠️ ค้นหาไม่สำเร็จ</div>';
+  }
+}
+
+function abSelectManualStore(code, name) {
+  document.getElementById('ab_store_code').value = code;
+  document.getElementById('ab_store_name').value = name;
+  document.getElementById('abManualSearchInput').value = code + ' — ' + name;
+  document.getElementById('abManualSearchResults').innerHTML = `<div style="background:var(--green-light); border-radius:10px; padding:10px; color:var(--green-deep); font-weight:700;">✅ เลือกแล้ว: ${name}</div>`;
+}
+
+async function abSavePending() {
+  const invoice_date = document.getElementById('ab_invoice_date').value;
+  const dc_name = document.getElementById('ab_dc_name').value;
+  const store_code = document.getElementById('ab_store_code').value;
+  const store_name = document.getElementById('ab_store_name').value;
+  const bill_amount = document.getElementById('ab_bill_amount').value;
+
+  if (!dc_name || !store_code || !store_name) {
+    showStatus('abStatusConfirm', 'error', 'กรุณากรอกข้อมูลให้ครบ (DC, รหัสร้าน, ชื่อร้าน)');
+    return;
+  }
+
+  const btn = document.getElementById('abSaveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> กำลังบันทึก...';
+  showStatus('abStatusConfirm', 'info', 'กำลังบันทึกลง Google Sheet...');
+
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'savePending', invoice_date, dc_name, store_code, store_name, bill_amount })
+    });
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'บันทึกไม่สำเร็จ');
+
+    // Success card
+    document.getElementById('ab_rec_store').textContent = store_name;
+    document.getElementById('ab_rec_dc').textContent = dc_name;
+    document.getElementById('ab_rec_amount').textContent = fmtAmt(bill_amount);
+    document.getElementById('ab_rec_date').textContent = fmtDate(invoice_date);
+
+    document.querySelectorAll('#addBillApp .screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('abSuccessScreen').classList.add('show');
+    window.scrollTo(0, 0);
+  } catch(err) {
+    showStatus('abStatusConfirm', 'error', 'บันทึกไม่สำเร็จ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '💾 บันทึกลง Pending';
+  }
+}
+
+function abAddAnother() {
+  abReset();
+}
+
+// ══════════════════════════════════════════════
+// PAY SLIP — from Dashboard pending card
+// ══════════════════════════════════════════════
+function startPaySlip(item) {
+  currentPendingItem = item;
+  psSlipBase64 = null; psSlipMime = null; psSlipAmount = '';
+
+  // Reset UI
+  ['psSlipFile','psSlipFileGallery'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  const prev = document.getElementById('psSlipPreview'); if(prev){ prev.src=''; prev.classList.remove('visible'); }
+  document.getElementById('psSlipCamBtn').classList.remove('has-file');
+  document.getElementById('psSubmitBtn').disabled = true;
+  clearStatus('psStatus');
+  document.getElementById('psSlipCheckBox').style.display = 'none';
+  document.getElementById('psSuccessScreen').classList.remove('show');
+  document.querySelectorAll('#paySlipApp .screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('psScreen1').classList.add('active');
+
+  // Show bill amount
+  document.getElementById('psHeaderStore').textContent = item.store_name || 'อัปโหลดสลิป';
+  document.getElementById('psBillAmtDisplay').textContent = fmtAmt(item.bill_amount);
+  document.getElementById('psBannerSub').textContent = 'อัปโหลดสลิปเพื่อตรวจสอบยอด';
+
+  // Steps
+  for(let i=1;i<=2;i++) {
+    const si = document.getElementById('ps_si'+i);
+    if(si){ si.classList.remove('active','done'); if(i===1) si.classList.add('active'); }
+  }
+
+  showApp('paySlipApp');
+}
+
+document.getElementById('psSlipFile').addEventListener('change', e => psHandleSlip(e.target.files[0]));
+document.getElementById('psSlipFileGallery').addEventListener('change', e => psHandleSlip(e.target.files[0]));
+
+function psHandleSlip(file) {
+  if (!file) return;
+  psSlipMime = file.type || 'image/jpeg';
+  const reader = new FileReader();
+  reader.onload = ev => {
+    psSlipBase64 = ev.target.result.split(',')[1];
+    document.getElementById('psSlipPreview').src = ev.target.result;
+    document.getElementById('psSlipPreview').classList.add('visible');
+    document.getElementById('psSlipCamBtn').classList.add('has-file');
+    document.getElementById('psSubmitBtn').disabled = false;
+    psReadSlipAmount();
+  };
+  reader.readAsDataURL(file);
+}
+
+async function psReadSlipAmount() {
+  const checkBox = document.getElementById('psSlipCheckBox');
+  const bannerSub = document.getElementById('psBannerSub');
+  checkBox.style.display = 'block';
+  checkBox.style.background = '#dbeafe';
+  checkBox.style.color = '#1d4ed8';
+  checkBox.innerHTML = '<span class="spinner" style="border-color:rgba(29,78,216,0.3);border-top-color:#1d4ed8;"></span> AI กำลังอ่านยอดจากสลิป...';
+  bannerSub.textContent = 'กำลังตรวจสอบ...';
+
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'readSlip', image: psSlipBase64, mimeType: psSlipMime })
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.content?.[0]?.text || '';
+    const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
+    const slipAmt = parseFloat(parsed.amount || '0');
+    if (!slipAmt) throw new Error('อ่านยอดไม่ได้');
+    psSlipAmount = parsed.amount || '';
+
+    const billAmt = parseFloat((currentPendingItem?.bill_amount || '0').toString().replace(/[฿,\s]/g, ''));
+    const slipFmt = fmtAmt(slipAmt);
+    const billFmt = fmtAmt(billAmt);
+
+    if (billAmt > 0) {
+      const match = Math.abs(slipAmt - billAmt) < 1;
+      if (match) {
+        checkBox.style.background = '#dcfce7'; checkBox.style.color = '#15803d';
+        checkBox.innerHTML = `✅ ยอดตรงกัน! สลิป ${slipFmt} = บิล ${billFmt}`;
+        bannerSub.textContent = '✅ ยอดสลิปตรงกับบิล';
+      } else {
+        checkBox.style.background = '#fee2e2'; checkBox.style.color = '#b91c1c';
+        checkBox.innerHTML = `⚠️ ยอดไม่ตรง! สลิป <b>${slipFmt}</b> แต่บิล <b>${billFmt}</b>`;
+        bannerSub.textContent = '⚠️ ยอดไม่ตรงกับบิล';
+      }
+    } else {
+      checkBox.style.background = '#f0fdf4'; checkBox.style.color = '#15803d';
+      checkBox.innerHTML = `🧾 ยอดจากสลิป: <b>${slipFmt}</b>`;
+      bannerSub.textContent = `ยอดจากสลิป: ${slipFmt}`;
+    }
+  } catch(err) {
+    checkBox.style.background = '#fef9c3'; checkBox.style.color = '#92400e';
+    checkBox.innerHTML = '⚠️ AI อ่านยอดสลิปไม่ได้ — กรุณาตรวจสอบเอง';
+    bannerSub.textContent = 'ตรวจสอบยอดด้วยตัวเอง';
+  }
+}
+
+async function psSubmit() {
+  if (!psSlipBase64) { showStatus('psStatus','error','กรุณาอัปโหลดสลิปก่อน'); return; }
+  const item = currentPendingItem;
+
+  const btn = document.getElementById('psSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> กำลังส่ง...';
+  showStatus('psStatus', 'info', 'กำลังส่งข้อมูลไปยังตะวันแดง DCM...');
+
+  try {
+    // Submit slip to ตะวันแดง via GAS
+    const payload = {
+      delivery_date: item.invoice_date || '',
+      dc_name: item.dc_name,
+      store_code: item.store_code,
+      store_name: item.store_name,
+      slip_image: psSlipBase64,
+      slip_mime: psSlipMime
+    };
+    const res = await fetch(GAS_URL + '?t=' + Date.now(), {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    });
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'ไม่ทราบสาเหตุ');
+
+    const sentAt = nowStamp();
+    const amount = psSlipAmount || item.bill_amount || '';
+
+    // Update status in Pending sheet
+    await fetch(GAS_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'updateStatus', pending_id: item['#'] || item._row, status: 'paid', updated_at: sentAt })
+    });
+
+    // Save to Bill Upload tab
+    await fetch(GAS_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'saveHistory', delivery_date: item.invoice_date, dc_name: item.dc_name, store_code: item.store_code, store_name: item.store_name, amount, sentAt })
+    });
+
+    // Show success
+    document.getElementById('ps_rec_store').textContent = item.store_name;
+    document.getElementById('ps_rec_dc').textContent = item.dc_name;
+    document.getElementById('ps_rec_amount').textContent = fmtAmt(amount);
+    document.getElementById('ps_rec_time').textContent = sentAt;
+
+    document.querySelectorAll('#paySlipApp .screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('psSuccessScreen').classList.add('show');
+    window.scrollTo(0, 0);
+  } catch(err) {
+    showStatus('psStatus', 'error', 'ส่งไม่สำเร็จ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '✅ ส่งสลิปไปตะวันแดง';
+  }
+}
+
+// ══════════════════════════════════════════════
+// OVERDUE — from Dashboard pending card
+// ══════════════════════════════════════════════
+function startOverdue(item) {
+  currentPendingItem = item;
+  ovState = {
+    storeCode: item.store_code || '',
+    storeName: item.store_name || '',
+    dcName: item.dc_name || '',
+    billAmount: item.bill_amount || '',
+    invoiceDate: item.invoice_date || '',
+    staffKey: '',
+    daysLate: 0,
+    paymentDueDate: ''
+  };
+
+  // Reset UI
+  document.getElementById('ovStaffSelect').value = '';
+  document.getElementById('ovStaffInfo').style.display = 'none';
+  document.getElementById('ovDaysLate').value = '';
+  document.getElementById('ovDueCalcDisplay').style.display = 'none';
+  document.getElementById('ovNext1').disabled = true;
+  clearStatus('ovStatus1');
+  clearStatus('ovStatus2');
+  document.getElementById('ovSubmitBtn').disabled = false;
+  document.getElementById('ovSubmitBtn').innerHTML = '😿 ส่งข้อมูลค้างชำระ';
+  document.getElementById('ovSuccessScreen').classList.remove('show');
+  document.querySelectorAll('#overdueApp .screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('ovScreen1').classList.add('active');
+
+  // Fill store info card
+  document.getElementById('ovHeaderStore').textContent = item.store_name || 'ค้างชำระ';
+  document.getElementById('ovStoreName').textContent = item.store_name || '—';
+  document.getElementById('ovStoreCode').textContent = 'รหัส: ' + (item.store_code || '—');
+  document.getElementById('ovDcName').textContent = item.dc_name || '—';
+  document.getElementById('ovBillAmt').textContent = fmtAmt(item.bill_amount);
+  document.getElementById('ovInvoiceDate').textContent = fmtDate(item.invoice_date);
+  document.getElementById('ovScreen1Sub').textContent = 'ตั้งค่าวันครบกำหนดสำหรับ ' + (item.store_name || 'ร้านนี้');
+
+  // Steps
+  for(let i=1;i<=3;i++) {
+    const si = document.getElementById('ov_si'+i);
+    if(si){ si.classList.remove('active','done'); if(i===1) si.classList.add('active'); }
+  }
+
+  showApp('overdueApp');
+}
+
+function ovGoStep(n) {
+  document.querySelectorAll('#overdueApp .screen').forEach(s => s.classList.remove('active'));
+  const sc = document.getElementById('ovScreen' + n);
+  if (sc) sc.classList.add('active');
+  for(let i=1;i<=3;i++) {
+    const si = document.getElementById('ov_si'+i);
+    if(!si) continue;
+    si.classList.remove('active','done');
+    if(i<n) si.classList.add('done');
+    else if(i===n) si.classList.add('active');
+  }
+  if (n === 2) ovPopulateReview();
+  window.scrollTo(0, 0);
+}
+
+function ovFillStaff(key) {
+  ovState.staffKey = key;
+  const info = document.getElementById('ovStaffInfo');
+  if (!key || !STAFF_DATA[key]) { info.style.display = 'none'; ovCheckNext(); return; }
+  const s = STAFF_DATA[key];
+  document.getElementById('ovNickname').textContent = s.nickname;
+  document.getElementById('ovLineId').textContent = s.lineId;
+  document.getElementById('ovArea').textContent = s.area;
+  info.style.display = 'block';
+  ovCheckNext();
+}
+
+function ovCalcDue() {
+  const days = parseInt(document.getElementById('ovDaysLate').value || '0');
+  if (!days || !ovState.invoiceDate) { document.getElementById('ovDueCalcDisplay').style.display = 'none'; ovState.daysLate = 0; ovState.paymentDueDate = ''; ovCheckNext(); return; }
+  const base = new Date(ovState.invoiceDate);
+  base.setDate(base.getDate() + days);
+  const yyyy = base.getFullYear();
+  const mm = String(base.getMonth()+1).padStart(2,'0');
+  const dd = String(base.getDate()).padStart(2,'0');
+  ovState.paymentDueDate = `${yyyy}-${mm}-${dd}`;
+  ovState.daysLate = days;
+  document.getElementById('ovDueCalcDate').textContent = `${dd}/${mm}/${yyyy} (Invoice + ${days} วัน)`;
+  document.getElementById('ovDueCalcDisplay').style.display = 'block';
+  ovCheckNext();
+}
+
+function ovCheckNext() {
+  const ok = ovState.staffKey && ovState.daysLate > 0 && ovState.paymentDueDate;
+  document.getElementById('ovNext1').disabled = !ok;
+}
+
+function ovPopulateReview() {
+  const s = ovState;
+  const staff = STAFF_DATA[s.staffKey] || {};
+  document.getElementById('ovDueDaysNum').textContent = s.daysLate || '—';
+  document.getElementById('ovDueDateDisplay').textContent = s.paymentDueDate ? 'ครบกำหนด: ' + fmtDate(s.paymentDueDate) : '—';
+  document.getElementById('ov_rec_store').textContent = s.storeName || '—';
+  document.getElementById('ov_rec_code').textContent = 'รหัส: ' + (s.storeCode || '—');
+  document.getElementById('ov_rec_staff').textContent = staff.fullName || s.staffKey || '—';
+  document.getElementById('ov_rec_staff_sub').textContent = [staff.nickname ? 'จี๋' : '', staff.area || '', staff.lineId ? 'Line: ' + staff.lineId : ''].filter(Boolean).join(' • ');
+  document.getElementById('ov_rec_dc').textContent = s.dcName || '—';
+  document.getElementById('ov_rec_amount').textContent = fmtAmt(s.billAmount);
+  document.getElementById('ov_rec_invoice').textContent = fmtDate(s.invoiceDate);
+  document.getElementById('ov_rec_due').textContent = s.paymentDueDate ? fmtDate(s.paymentDueDate) + ` (+${s.daysLate} วัน)` : '—';
+}
+
+async function ovSubmit() {
+  const s = ovState;
+  const staff = STAFF_DATA[s.staffKey] || {};
+  const btn = document.getElementById('ovSubmitBtn');
+
+  if (!s.staffKey || !s.daysLate || !s.paymentDueDate) {
+    showStatus('ovStatus2', 'error', 'ข้อมูลไม่ครบ กรุณาตรวจสอบ');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> กำลังส่ง...';
+  showStatus('ovStatus2', 'info', 'กำลังส่งข้อมูลไปยังตะวันแดง...');
+
+  try {
+    // Submit to ตะวันแดง overdue endpoint
+    const formData = new FormData();
+    formData.append('customer_code',    s.storeCode);
+    formData.append('customer_name',    s.storeName);
+    formData.append('ceostaff_name',    staff.fullName || s.staffKey);
+    formData.append('position',         staff.position || '');
+    formData.append('sales_area',       staff.area || '');
+    formData.append('line_id',          staff.lineId || '');
+    formData.append('dc_name',          s.dcName);
+    formData.append('amount',           s.billAmount);
+    formData.append('invoice_date',     s.invoiceDate);
+    formData.append('payment_due_date', s.paymentDueDate);
+
+    const res = await fetch(OVERDUE_SUBMIT_URL, { method: 'POST', body: formData });
+    if (res.status < 200 || res.status >= 400) throw new Error('Server returned ' + res.status);
+
+    const sentAt = nowStamp();
+
+    // Update Pending status
+    await fetch(GAS_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'updateStatus', pending_id: currentPendingItem['#'] || currentPendingItem._row, status: 'overdue', updated_at: sentAt })
+    });
+
+    // Save to Overdue Upload tab
+    await fetch(GAS_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'saveOverdue',
+        customer_code: s.storeCode, customer_name: s.storeName,
+        ceostaff_name: staff.fullName || s.staffKey,
+        position: staff.position || '', sales_area: staff.area || '', line_id: staff.lineId || '',
+        dc_name: s.dcName, amount: s.billAmount,
+        invoice_date: s.invoiceDate, payment_due_date: s.paymentDueDate, sentAt
+      })
+    });
+
+    // Show success
+    document.getElementById('ov_succ_store').textContent = s.storeName + ' (' + s.storeCode + ')';
+    document.getElementById('ov_succ_amount').textContent = fmtAmt(s.billAmount);
+    document.getElementById('ov_succ_due').textContent = fmtDate(s.paymentDueDate) + ` (+${s.daysLate} วัน)`;
+    document.getElementById('ov_succ_time').textContent = sentAt;
+
+    document.querySelectorAll('#overdueApp .screen').forEach(sc => sc.classList.remove('active'));
+    document.getElementById('ovSuccessScreen').classList.add('show');
+    window.scrollTo(0, 0);
+  } catch(err) {
+    showStatus('ovStatus2', 'error', 'ส่งไม่สำเร็จ: ' + err.message);
+    btn.disabled = false;
+    btn.innerHTML = '😿 ส่งข้อมูลค้างชำระ';
+  }
+}
+
+// ─── Init ───
+window.addEventListener('DOMContentLoaded', () => loadDashboard());
+</script>
+</body>
+</html>
