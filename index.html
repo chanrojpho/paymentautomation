@@ -295,18 +295,18 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
       <line x1="42" y1="30" x2="29" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
     </svg>
     <div>
-      <div class="header-title">ตะวันแดง DCM V2</div>
+      <div class="header-title">TWD Payment Portal</div>
       <div class="header-sub">Today Date: <span id="homeToday">—</span></div>
     </div>
     <!-- Add bill button -->
     <button onclick="gotoAddBill()" style="margin-left:auto; background:var(--charcoal); color:white; border:none; border-radius:12px; padding:10px 16px; font-size:14px; font-weight:700; font-family:Sarabun,sans-serif; cursor:pointer; white-space:nowrap;">
-      ➕ เพิ่มบิล
+      ➕ add bills
     </button>
   </div>
 
   <!-- Dashboard tabs -->
   <div class="tab-bar">
-    <button class="tab-btn active" id="homeTabPending" onclick="switchHomeTab('pending')">⏳ Pending</button>
+    <button class="tab-btn active" id="homeTabPending" onclick="switchHomeTab('pending')">⏳ Bills Upload</button>
     <button class="tab-btn" id="homeTabPaid"    onclick="switchHomeTab('paid')">✅ Paid</button>
     <button class="tab-btn" id="homeTabOverdue" onclick="switchHomeTab('overdue')">😿 Overdue</button>
   </div>
@@ -315,7 +315,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
 
     <!-- Reload -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-      <div style="font-family:'Mitr',sans-serif; font-size:15px; font-weight:600; color:var(--charcoal);" id="homeTabTitle">📋 รายการ Pending วันนี้</div>
+      <div style="font-family:'Mitr',sans-serif; font-size:15px; font-weight:600; color:var(--charcoal);" id="homeTabTitle">⏳ Bills Upload</div>
       <button onclick="loadDashboard()" style="background:none; border:none; font-size:12px; color:var(--muted); cursor:pointer; font-family:Sarabun,sans-serif;">↻ โหลดใหม่</button>
     </div>
 
@@ -854,7 +854,7 @@ function switchHomeTab(tab) {
     const pane = document.getElementById('home' + t.charAt(0).toUpperCase() + t.slice(1) + 'List');
     if (pane) pane.style.display = t === tab ? 'block' : 'none';
   });
-  const titles = { pending: '⏳ Pending', paid: '✅ Paid (3 วัน)', overdue: '😿 Overdue (3 วัน)' };
+  const titles = { pending: '⏳ Bills Upload', paid: '✅ Paid (latest 3 days)', overdue: '😿 Overdue (latest 3 days)' };
   document.getElementById('homeTabTitle').textContent = titles[tab] || '';
   renderDashboard();
 }
@@ -915,7 +915,7 @@ function renderPendingList() {
   const el = document.getElementById('homePendingList');
   const items = dashboardData.pending;
   if (!items.length) {
-    el.innerHTML = '<div class="no-data">🐾 ไม่มีรายการ Pending<br>กด ➕ เพิ่มบิล เพื่อเริ่ม</div>';
+    el.innerHTML = '<div class="no-data">🐾 ไม่มีรายการ Pending<br>กด ➕ add bills เพื่อเริ่ม</div>';
     return;
   }
   el.innerHTML = items.map(r => `
@@ -938,7 +938,7 @@ function renderPendingList() {
 function renderPaidList() {
   const el = document.getElementById('homePaidList');
   const items = dashboardData.paid;
-  if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Paid ใน 3 วัน</div>'; return; }
+  if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Paid (latest 3 days)</div>'; return; }
   el.innerHTML = items.slice().reverse().map(r => {
     const isLate = r.status === 'overdue_paid';
     const chip = isLate
@@ -947,9 +947,10 @@ function renderPaidList() {
     return `
     <div class="pending-card status-paid">
       <div class="pending-store">${r.store_name || '—'}</div>
+      <div style="font-size:12px; color:var(--slate); margin-bottom:4px;">🚚 Delivery Date: <b>${fmtDate(r.invoice_date)}</b></div>
       <div style="font-size:12px; color:var(--slate); margin-bottom:4px;">
         ${chip}
-        &nbsp; ${fmtDate(r.invoice_date)} &nbsp;•&nbsp; ${fmtAmt(r.bill_amount)}
+        &nbsp; ${fmtAmt(r.bill_amount)}
       </div>
       <div style="font-size:12px; color:var(--slate); margin-bottom:4px;">🏭 คลัง: <span class="chip chip-blue">${r.dc_name || '—'}</span></div>
       <div style="font-size:11px; color:var(--muted);">บันทึก: ${fmtTime(r.updated_at)}</div>
@@ -963,7 +964,7 @@ function renderPaidList() {
 function renderOverdueList() {
   const el = document.getElementById('homeOverdueList');
   const items = dashboardData.overdue;
-  if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Overdue ใน 3 วัน</div>'; return; }
+  if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Overdue (latest 3 days)</div>'; return; }
   el.innerHTML = items.slice().reverse().map(r => {
     const id = r['#'] || r._row;
     const days = parseInt(r.overdue_days, 10);
@@ -1686,7 +1687,10 @@ async function ovSubmit() {
 // ─── Init ───
 function setToday() {
   const el = document.getElementById('homeToday');
-  if (el) el.textContent = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+  if (!el) return;
+  const d = new Date();
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  el.textContent = `${d.getDate()} ${mon[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 window.addEventListener('DOMContentLoaded', () => { setToday(); loadDashboard(); });
 </script>
