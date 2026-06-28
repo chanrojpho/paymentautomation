@@ -376,6 +376,11 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
       <div class="screen-title">📄 ถ่ายรูปใบส่งสินค้า</div>
       <div class="screen-sub">ถ่ายบิลแล้วให้ AI อ่าน หรือกรอกเองด้านล่าง</div>
 
+      <div class="field-group" style="margin-bottom:18px;">
+        <label class="field-label">🧑 ชื่อผู้ดูแลบิล (Staff) <span style="color:#dc2626;">*</span></label>
+        <input type="text" class="field-input" id="ab_staff" placeholder="พิมพ์ชื่อเล่นของคุณ เช่น จี๋" autocomplete="off">
+      </div>
+
       <label class="cam-btn" id="abBillCamBtn">
         <input type="file" id="abBillFile" accept="image/*">
         <div class="cam-inner">
@@ -427,10 +432,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
             <div class="record-row"><div class="record-icon">📅</div><div><div class="record-label">วันที่บิล</div><div class="record-val" id="abSum_date">—</div></div></div>
           </div>
         </div>
-        <div class="field-group" style="margin:4px 0 16px;">
-          <label class="field-label">🧑 ชื่อผู้ดูแลบิล (Staff) <span style="color:#dc2626;">*</span></label>
-          <input type="text" class="field-input" id="ab_staff" placeholder="พิมพ์ชื่อเล่นของคุณ เช่น จี๋" autocomplete="off">
-        </div>
+        <div style="font-size:13px; color:var(--slate); margin:4px 0 16px; padding:11px 14px; background:var(--fur-light); border-radius:12px;">🧑 ผู้ดูแลบิล: <b id="abSum_staff">—</b></div>
         <button class="btn-green" id="abSaveBtn" onclick="abSavePending()">💾 บันทึกลง Pending</button>
       </div>
 
@@ -1258,6 +1260,7 @@ function abShowSummary() {
   document.getElementById('abSum_dc').textContent = document.getElementById('ab_dc_name').value || '—';
   document.getElementById('abSum_amount').textContent = fmtAmt(document.getElementById('ab_bill_amount').value);
   document.getElementById('abSum_date').textContent = fmtDate(document.getElementById('ab_invoice_date').value);
+  document.getElementById('abSum_staff').textContent = (document.getElementById('ab_staff').value || '').trim() || '⚠️ ยังไม่ได้กรอกชื่อ';
 }
 
 // Switch to edit form
@@ -1339,7 +1342,8 @@ async function abSavePending() {
     return;
   }
   if (!staff) {
-    showStatus('abStatusConfirm', 'error', 'กรุณากรอกชื่อผู้ดูแลบิล (Staff)');
+    abGoStep(1); // the name box lives on screen 1
+    showStatus('abStatusBill', 'error', 'กรุณากรอกชื่อผู้ดูแลบิล (Staff) ก่อน');
     document.getElementById('ab_staff').focus();
     return;
   }
