@@ -1021,11 +1021,15 @@ function ovTogglePicker(btn) {
 }
 
 // Payment Due Date = Invoice Date + N days (same rule as the overdue form)
-function ovDueDate(invoiceStr, days) {
+function ovDueISO(invoiceStr, days) {
   const d = new Date(invoiceStr);
-  if (isNaN(d) || !days) return '—';
+  if (isNaN(d) || !days) return '';
   d.setDate(d.getDate() + parseInt(days, 10));
-  return fmtDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function ovDueDate(invoiceStr, days) {
+  const iso = ovDueISO(invoiceStr, days);
+  return iso ? fmtDate(iso) : '—';
 }
 
 function ovSetDaysCustom(pendingId) {
@@ -1033,20 +1037,42 @@ function ovSetDaysCustom(pendingId) {
   if (days > 0) ovSetDays(pendingId, days);
 }
 
+// Pick new days -> resubmit overdue to ตะวันแดง (new due date, reusing the
+// store info + default staff) + store the days for the card + log it.
 async function ovSetDays(pendingId, days) {
   const item = dashboardData.overdue.find(r => String(r['#'] || r._row) === String(pendingId));
   if (!item) return;
-  showStatus('homeStatus', 'info', 'กำลังอัปเดต...');
+  const staff = STAFF_DATA[Object.keys(STAFF_DATA)[0]] || {};
+  const dueISO = ovDueISO(item.invoice_date, days);
+  const sentAt = nowStamp();
+  showStatus('homeStatus', 'info', 'กำลังส่งค้างชำระไปตะวันแดง...');
   try {
+    // 1) resubmit overdue to ตะวันแดง with the new payment due date
     const res = await fetch(GAS_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'setOverdueDays', pending_id: pendingId, days: days, updated_at: nowStamp() })
+      body: JSON.stringify({
+        action: 'submitOverdue',
+        customer_code: item.store_code, customer_name: item.store_name,
+        ceostaff_name: staff.fullName || '', position: staff.position || '',
+        sales_area: staff.area || '', line_id: staff.lineId || '',
+        dc_name: item.dc_name, amount: item.bill_amount,
+        invoice_date: item.invoice_date, payment_due_date: dueISO
+      })
     });
     const result = await res.json();
-    if (!result.success) throw new Error(result.error || 'อัปเดตไม่สำเร็จ');
+    if (!result.success) throw new Error(result.error || 'ส่งไม่สำเร็จ');
+
+    // 2) store days for the card, 3) log to Overdue Upload
+    await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'setOverdueDays', pending_id: pendingId, days: days, updated_at: sentAt }) });
+    await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'saveOverdue', customer_code: item.store_code, customer_name: item.store_name,
+        ceostaff_name: staff.fullName || '', position: staff.position || '', sales_area: staff.area || '', line_id: staff.lineId || '',
+        dc_name: item.dc_name, amount: item.bill_amount, invoice_date: item.invoice_date, payment_due_date: dueISO, sentAt }) });
+
     await loadDashboard();
   } catch(err) {
-    showStatus('homeStatus', 'error', 'อัปเดตไม่สำเร็จ: ' + err.message);
+    showStatus('homeStatus', 'error', 'ไม่สำเร็จ: ' + err.message);
   }
 }
 
