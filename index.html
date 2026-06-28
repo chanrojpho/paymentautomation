@@ -296,7 +296,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
     </svg>
     <div>
       <div class="header-title">ตะวันแดง DCM V2</div>
-      <div class="header-sub">📅 <span id="homeToday">—</span></div>
+      <div class="header-sub">Today Date: <span id="homeToday">—</span></div>
     </div>
     <!-- Add bill button -->
     <button onclick="gotoAddBill()" style="margin-left:auto; background:var(--charcoal); color:white; border:none; border-radius:12px; padding:10px 16px; font-size:14px; font-weight:700; font-family:Sarabun,sans-serif; cursor:pointer; white-space:nowrap;">
@@ -951,6 +951,7 @@ function renderPaidList() {
         ${chip}
         &nbsp; ${fmtDate(r.invoice_date)} &nbsp;•&nbsp; ${fmtAmt(r.bill_amount)}
       </div>
+      <div style="font-size:12px; color:var(--slate); margin-bottom:4px;">🏭 คลัง: <span class="chip chip-blue">${r.dc_name || '—'}</span></div>
       <div style="font-size:11px; color:var(--muted);">บันทึก: ${fmtTime(r.updated_at)}</div>
       <div class="pending-actions" style="margin-top:8px;">
         <button class="btn-del" onclick='deletePending(${JSON.stringify(r)})'>🗑️ ลบ</button>
@@ -976,6 +977,7 @@ function renderOverdueList() {
       <div class="pending-meta">
         <div style="margin-bottom:3px;">🚚 Delivery Date: <b>${fmtDate(r.invoice_date)}</b></div>
         <div style="margin-bottom:3px;">💰 ยอดเงิน: <b>${fmtAmt(r.bill_amount)}</b></div>
+        <div style="margin-bottom:3px;">🏭 คลัง: <span class="chip chip-blue">${r.dc_name || '—'}</span></div>
         ${dayLine}
       </div>
       <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">บันทึก: ${fmtTime(r.updated_at)}</div>
