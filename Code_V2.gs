@@ -38,8 +38,8 @@ function doPost(e) {
     var r = deletePendingRow(data.pending_id);
     return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
   }
-  if (data.action === 'bumpOverdue') {
-    var r = bumpOverdueRow(data.pending_id, data.updated_at);
+  if (data.action === 'setOverdueDays') {
+    var r = setOverdueDays(data.pending_id, data.days, data.updated_at);
     return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
   }
   if (data.action === 'saveHistory') {
@@ -230,16 +230,17 @@ function deletePendingRow(pendingId) {
 }
 
 // ══════════════════════════════════════════════
-// PENDING TAB — bumpOverdueRow
-// Increments the "Overdue Count" column (J) for repeat non-payment
+// PENDING TAB — setOverdueDays
+// Stores chosen overdue days in the "Overdue Days" column (J)
+// (Payment Due Date = Invoice + days, computed on the client)
 // ══════════════════════════════════════════════
-function bumpOverdueRow(pendingId, updatedAt) {
+function setOverdueDays(pendingId, days, updatedAt) {
   try {
     var ss = SpreadsheetApp.openById(SHEET_ID);
     var sheet = ss.getSheetByName(PENDING_TAB);
     if (!sheet) return { success: false, error: 'Pending sheet not found' };
 
-    if (sheet.getRange(1, 10).getValue() === '') sheet.getRange(1, 10).setValue('Overdue Count');
+    sheet.getRange(1, 10).setValue('Overdue Days'); // ensure/repair header
 
     var colA = sheet.getRange('A:A').getValues();
     var targetRow = -1;
@@ -248,15 +249,14 @@ function bumpOverdueRow(pendingId, updatedAt) {
     }
     if (targetRow === -1) return { success: false, error: 'pending_id ' + pendingId + ' not found' };
 
-    var cur = parseInt(sheet.getRange(targetRow, 10).getValue(), 10);
-    if (isNaN(cur) || cur < 1) cur = 1; // already overdue counts as round 1
-    var next = cur + 1;
-    sheet.getRange(targetRow, 10).setValue(next);
+    var d = parseInt(days, 10);
+    if (isNaN(d) || d < 1) d = 1;
+    sheet.getRange(targetRow, 10).setValue(d);
     sheet.getRange(targetRow, 9).setValue(updatedAt || new Date().toString()); // Updated At
-    Logger.log('Bumped overdue row ' + targetRow + ' -> ' + next);
-    return { success: true, count: next };
+    Logger.log('Set overdue days row ' + targetRow + ' -> ' + d);
+    return { success: true, days: d };
   } catch(err) {
-    Logger.log('bumpOverdueRow error: ' + err);
+    Logger.log('setOverdueDays error: ' + err);
     return { success: false, error: err.toString() };
   }
 }

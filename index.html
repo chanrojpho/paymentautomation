@@ -187,6 +187,12 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
 }
 .pending-actions .btn-del { flex: 0 0 auto; }
 .btn-del:active { transform: scale(0.97); }
+.btn-day {
+  border: 1.5px solid #fecaca; border-radius: 10px; padding: 8px 12px; font-size: 13px;
+  font-weight: 700; font-family: 'Sarabun', sans-serif; cursor: pointer;
+  background: #fff; color: var(--red-deep);
+}
+.btn-day:active { transform: scale(0.96); }
 
 /* ─── Summary / record cards ──── */
 .record-card { background: white; border-radius: 18px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 20px; }
@@ -958,20 +964,36 @@ function renderOverdueList() {
   const items = dashboardData.overdue;
   if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Overdue ใน 3 วัน</div>'; return; }
   el.innerHTML = items.slice().reverse().map(r => {
-    const oc = Math.max(1, parseInt(r.overdue_count, 10) || 1);
+    const id = r['#'] || r._row;
+    const days = parseInt(r.overdue_days, 10);
+    const dayLine = days > 0
+      ? `<div style="margin-bottom:3px;"><span class="chip chip-red">😿 ค้างชำระ ${days} วัน</span></div>
+         <div>📅 ครบกำหนด: <b>${ovDueDate(r.invoice_date, days)}</b></div>`
+      : `<div><span class="chip chip-red">😿 ค้างชำระ</span></div>`;
     return `
     <div class="pending-card status-overdue">
       <div class="pending-store">${r.store_name || '—'}</div>
       <div class="pending-meta">
-        <div style="margin-bottom:3px;"><span class="chip chip-red">😿 ค้างชำระ รอบที่ ${oc}</span></div>
         <div style="margin-bottom:3px;">🚚 Delivery Date: <b>${fmtDate(r.invoice_date)}</b></div>
-        <div>💰 ยอดเงิน: <b>${fmtAmt(r.bill_amount)}</b></div>
+        <div style="margin-bottom:3px;">💰 ยอดเงิน: <b>${fmtAmt(r.bill_amount)}</b></div>
+        ${dayLine}
       </div>
       <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">บันทึก: ${fmtTime(r.updated_at)}</div>
       <div class="pending-actions">
         <button class="btn-pay" onclick='startPaySlip(${JSON.stringify(r)}, true)'>💛 รับเงินแล้ว</button>
-        <button class="btn-overdue-sm" onclick='bumpOverdue(${JSON.stringify(r)})'>⏳ ยังไม่จ่าย</button>
+        <button class="btn-overdue-sm" onclick="ovTogglePicker(this)">⏳ ยังไม่จ่าย</button>
         <button class="btn-del" onclick='deletePending(${JSON.stringify(r)})'>🗑️</button>
+      </div>
+      <div class="ov-daypick" style="display:none; margin-top:10px; background:var(--fur-light); border-radius:12px; padding:10px;">
+        <div style="font-size:12px; font-weight:700; color:var(--slate); margin-bottom:8px;">ค้างชำระกี่วัน? (ครบกำหนด = Invoice + วัน)</div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="btn-day" onclick="ovSetDays('${id}',1)">1 วัน</button>
+          <button class="btn-day" onclick="ovSetDays('${id}',2)">2 วัน</button>
+          <button class="btn-day" onclick="ovSetDays('${id}',3)">3 วัน</button>
+          <button class="btn-day" onclick="ovSetDays('${id}',4)">4 วัน</button>
+          <button class="btn-day" onclick="ovSetDays('${id}',7)">7 วัน</button>
+          <button class="btn-day" onclick="ovSetDaysCustom('${id}')">กำหนดเอง</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -993,12 +1015,32 @@ async function deletePending(item) {
   }
 }
 
-async function bumpOverdue(item) {
+function ovTogglePicker(btn) {
+  const pick = btn.closest('.pending-card').querySelector('.ov-daypick');
+  if (pick) pick.style.display = pick.style.display === 'none' ? 'block' : 'none';
+}
+
+// Payment Due Date = Invoice Date + N days (same rule as the overdue form)
+function ovDueDate(invoiceStr, days) {
+  const d = new Date(invoiceStr);
+  if (isNaN(d) || !days) return '—';
+  d.setDate(d.getDate() + parseInt(days, 10));
+  return fmtDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+}
+
+function ovSetDaysCustom(pendingId) {
+  const days = parseInt(prompt('ค้างชำระกี่วัน?'), 10);
+  if (days > 0) ovSetDays(pendingId, days);
+}
+
+async function ovSetDays(pendingId, days) {
+  const item = dashboardData.overdue.find(r => String(r['#'] || r._row) === String(pendingId));
+  if (!item) return;
   showStatus('homeStatus', 'info', 'กำลังอัปเดต...');
   try {
     const res = await fetch(GAS_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'bumpOverdue', pending_id: item['#'] || item._row, updated_at: nowStamp() })
+      body: JSON.stringify({ action: 'setOverdueDays', pending_id: pendingId, days: days, updated_at: nowStamp() })
     });
     const result = await res.json();
     if (!result.success) throw new Error(result.error || 'อัปเดตไม่สำเร็จ');
@@ -1576,6 +1618,12 @@ async function ovSubmit() {
     await fetch(GAS_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'updateStatus', pending_id: currentPendingItem['#'] || currentPendingItem._row, status: 'overdue', updated_at: sentAt })
+    });
+
+    // Store the overdue days so the Overdue card shows "ค้างชำระ N วัน" right away
+    await fetch(GAS_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'setOverdueDays', pending_id: currentPendingItem['#'] || currentPendingItem._row, days: s.daysLate, updated_at: sentAt })
     });
 
     // Save to Overdue Upload tab
