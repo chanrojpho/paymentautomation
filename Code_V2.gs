@@ -42,6 +42,10 @@ function doPost(e) {
     var r = saveOverdueToSheet(data);
     return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
   }
+  if (data.action === 'submitOverdue') {
+    var r = processOverdueSubmit(e);
+    return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
+  }
   // Default — submit slip multipart to ตะวันแดง
   var r = processSlipSubmit(e);
   return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
@@ -219,6 +223,40 @@ function processSlipSubmit(e) {
     return { success: false, error: "Server returned " + code, body: response.getContentText() };
   } catch (err) {
     Logger.log("processSlipSubmit error: " + err);
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ══════════════════════════════════════════════
+// OVERDUE SUBMIT — forward to ตะวันแดง (server-side, bypasses Cloudflare/CORS)
+// Mirrors processSlipSubmit; text-only fields (no image)
+// ══════════════════════════════════════════════
+function processOverdueSubmit(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    Logger.log("=== OVERDUE SUBMIT: " + data.customer_name + " ===");
+    var formData = {
+      "customer_code":    data.customer_code    || '',
+      "customer_name":    data.customer_name    || '',
+      "ceostaff_name":    data.ceostaff_name    || '',
+      "position":         data.position         || '',
+      "sales_area":       data.sales_area       || '',
+      "line_id":          data.line_id          || '',
+      "dc_name":          data.dc_name          || '',
+      "amount":           data.amount           || '',
+      "invoice_date":     data.invoice_date     || '',
+      "payment_due_date": data.payment_due_date || ''
+    };
+    var response = UrlFetchApp.fetch(OVERDUE_URL, {
+      method: "POST", payload: formData,
+      followRedirects: true, muteHttpExceptions: true
+    });
+    var code = response.getResponseCode();
+    Logger.log("overdue response: " + code);
+    if (code >= 200 && code < 400) return { success: true, code: code };
+    return { success: false, error: "Server returned " + code, body: response.getContentText() };
+  } catch (err) {
+    Logger.log("processOverdueSubmit error: " + err);
     return { success: false, error: err.toString() };
   }
 }
