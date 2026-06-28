@@ -333,6 +333,30 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
 </div>
 
 <!-- ══════════════════════════════════════════════
+     🏆 RANKING DETAIL APP — opened from the leaderboard card
+══════════════════════════════════════════════ -->
+<div id="rankingApp" class="app">
+  <div class="page-header">
+    <button class="back-btn" onclick="goHome()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+    </button>
+    <div style="font-size:28px; margin-right:4px;">🏆</div>
+    <div>
+      <div class="header-title">Ranking</div>
+      <div class="header-sub">อันดับลูกค้า</div>
+    </div>
+  </div>
+  <div class="content" style="padding:16px 16px 48px;">
+    <div class="screen-title" style="font-size:16px;">🟢 จ่ายตรงเวลามากที่สุด</div>
+    <div class="screen-sub">เรียงตามจำนวนครั้งที่จ่ายตรงเวลา</div>
+    <div id="rankOnTimeList" style="margin-top:10px;"></div>
+    <div class="screen-title" style="font-size:16px; margin-top:24px;">📅 ยอดขายสูงสุด 7 วัน</div>
+    <div class="screen-sub">ลูกค้าที่ซื้อมากที่สุดใน 7 วันล่าสุด</div>
+    <div id="rankWeekList" style="margin-top:10px;"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
      ➕ ADD BILL APP — Pre-register flow
 ══════════════════════════════════════════════ -->
 <div id="addBillApp" class="app">
@@ -957,14 +981,13 @@ function parseAmt(v) {
   return parseFloat((v == null ? '' : v).toString().replace(/[^0-9.]/g, '')) || 0;
 }
 
-// 🏆 Leaderboard — best on-time payer, highest total spend, highest this week.
-// Computed from ALL bills (dashboardData.all), grouped by store.
-function renderLeaderboard() {
-  const el = document.getElementById('homeLeaderboard');
-  if (!el) return;
-  const all = dashboardData.all || [];
-  if (!all.length) { el.innerHTML = ''; return; }
+const moneyTHB = n => '฿' + Math.round(n).toLocaleString('en-US');
 
+// Group ALL bills (dashboardData.all) by store -> stats used by the leaderboard
+// card and the Ranking detail screen. paid = on time, late = overdue_paid,
+// overdue = still unpaid; week = spend in the last 7 days (by invoice_date).
+function computeStoreStats() {
+  const all = dashboardData.all || [];
   const wk = new Date(); wk.setDate(wk.getDate() - 7); wk.setHours(0, 0, 0, 0);
   const byStore = {};
   all.forEach(r => {
@@ -980,33 +1003,55 @@ function renderLeaderboard() {
     const d = new Date(r.invoice_date);
     if (!isNaN(d) && d >= wk) g.week += amt;
   });
-  const arr = Object.values(byStore);
+  return Object.values(byStore);
+}
 
-  // best payer = highest on-time rate among customers with >=1 on-time payment
-  const onTime = arr.filter(g => g.paid > 0)
-    .map(g => ({ g, settled: g.paid + g.late, rate: g.paid / (g.paid + g.late) }))
-    .sort((a, b) => b.rate - a.rate || b.g.paid - a.g.paid || b.settled - a.settled)[0];
-  const topSpend = arr.slice().sort((a, b) => b.total - a.total)[0];
+// 🏆 Compact leaderboard card — leads with highest sales (last 7 days);
+// tap it to open the full Ranking screen.
+function renderLeaderboard() {
+  const el = document.getElementById('homeLeaderboard');
+  if (!el) return;
+  const arr = computeStoreStats();
+  if (!arr.length) { el.innerHTML = ''; return; }
   const topWeek = arr.filter(g => g.week > 0).sort((a, b) => b.week - a.week)[0];
-
-  const money = n => '฿' + Math.round(n).toLocaleString('en-US');
-  const row = (emoji, label, name, value) => `
-    <div style="display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid rgba(0,0,0,0.06);">
-      <div style="font-size:20px;">${emoji}</div>
-      <div style="flex:1; min-width:0;">
-        <div style="font-size:11px; color:var(--muted); font-weight:700;">${label}</div>
-        <div style="font-size:14px; font-weight:800; color:var(--charcoal); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}</div>
-      </div>
-      <div style="font-size:13px; font-weight:800; color:var(--eye-deep); text-align:right; white-space:nowrap;">${value}</div>
-    </div>`;
-
+  const headName = topWeek ? topWeek.name : '—';
+  const headVal  = topWeek ? moneyTHB(topWeek.week) : '—';
   el.innerHTML = `
-    <div style="background:linear-gradient(135deg,#fff7ed,#fef3c7); border-radius:18px; padding:4px 16px 12px;">
-      <div style="font-family:'Mitr',sans-serif; font-size:14px; font-weight:700; color:var(--charcoal); padding:11px 0 2px;">🏆 อันดับลูกค้า</div>
-      ${onTime ? row('🟢', 'จ่ายตรงเวลาที่สุด', onTime.g.name, `${Math.round(onTime.rate * 100)}% · ${onTime.g.paid}/${onTime.settled}`) : ''}
-      ${topSpend ? row('💰', 'ยอดซื้อสูงสุด', topSpend.name, money(topSpend.total)) : ''}
-      ${topWeek ? row('📅', 'ยอดสูงสุดสัปดาห์นี้', topWeek.name, money(topWeek.week)) : row('📅', 'ยอดสูงสุดสัปดาห์นี้', '—', '—')}
+    <div onclick="openRanking()" style="background:linear-gradient(135deg,#fff7ed,#fef3c7); border-radius:18px; padding:13px 16px; cursor:pointer; display:flex; align-items:center; gap:12px;">
+      <div style="font-size:24px;">🏆</div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-family:'Mitr',sans-serif; font-size:13px; font-weight:700; color:var(--charcoal);">Ranking</div>
+        <div style="font-size:11px; color:var(--muted); font-weight:700; margin-top:2px;">📅 ยอดขายสูงสุด 7 วัน</div>
+        <div style="font-size:14px; font-weight:800; color:var(--charcoal); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${headName} <span style="color:var(--eye-deep);">${headVal}</span></div>
+      </div>
+      <div style="font-size:22px; color:var(--muted);">›</div>
     </div>`;
+}
+
+// Full Ranking screen: who pays on time the most + highest sales (last 7 days)
+function openRanking() {
+  const arr = computeStoreStats();
+  const onTime = arr.filter(g => g.paid > 0)
+    .map(g => ({ ...g, rate: g.paid / (g.paid + g.late) }))
+    .sort((a, b) => b.paid - a.paid || b.rate - a.rate);
+  const week = arr.filter(g => g.week > 0).sort((a, b) => b.week - a.week);
+
+  const medal = i => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
+  const rankRow = (i, name, value) => `
+    <div style="display:flex; align-items:center; gap:12px; padding:11px 13px; background:#fff; border-radius:12px; margin-bottom:8px; box-shadow:0 3px 12px -9px rgba(0,0,0,0.4);">
+      <div style="font-size:15px; font-weight:800; color:${i < 3 ? 'var(--nose-deep)' : 'var(--muted)'}; min-width:30px; text-align:center;">${medal(i)}</div>
+      <div style="flex:1; min-width:0; font-size:14px; font-weight:700; color:var(--charcoal); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}</div>
+      <div style="font-size:13px; font-weight:800; color:var(--eye-deep); white-space:nowrap;">${value}</div>
+    </div>`;
+
+  document.getElementById('rankOnTimeList').innerHTML = onTime.length
+    ? onTime.map((g, i) => rankRow(i, g.name, `ตรงเวลา ${g.paid} ครั้ง · ${Math.round(g.rate * 100)}%`)).join('')
+    : '<div class="no-data">ยังไม่มีข้อมูลการจ่ายตรงเวลา</div>';
+  document.getElementById('rankWeekList').innerHTML = week.length
+    ? week.map((g, i) => rankRow(i, g.name, moneyTHB(g.week))).join('')
+    : '<div class="no-data">ยังไม่มียอดขายใน 7 วันนี้</div>';
+
+  showApp('rankingApp');
 }
 
 // DC filter chips — shown on the Paid and Overdue tabs only.
@@ -1016,7 +1061,7 @@ function renderDcChips() {
   if (homeTab !== 'paid' && homeTab !== 'overdue') { el.style.display = 'none'; el.innerHTML = ''; return; }
   const src = homeTab === 'paid' ? dashboardData.paid : dashboardData.overdue;
   const dcs = [...new Set((src || []).map(r => r.dc_name).filter(Boolean))];
-  if (dcs.length <= 1) { el.style.display = 'none'; el.innerHTML = ''; return; } // nothing to filter
+  if (dcs.length < 1) { el.style.display = 'none'; el.innerHTML = ''; return; } // no DCs at all
   const chip = (label, val) => {
     const active = (homeDcFilter || '') === val;
     const css = active
