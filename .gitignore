@@ -1,0 +1,6 @@
+# Never commit files holding the real Anthropic API key.
+# The real key lives ONLY in the deployed Google Apps Script project.
+*WITH-KEY*
+*.local.gs
+*.secret*
+files.zip
