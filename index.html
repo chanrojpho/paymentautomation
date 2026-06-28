@@ -910,7 +910,7 @@ function renderPaidList() {
   const el = document.getElementById('homePaidList');
   const items = dashboardData.paid;
   if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Paid ใน 3 วัน</div>'; return; }
-  el.innerHTML = items.reverse().map(r => {
+  el.innerHTML = items.slice().reverse().map(r => {
     const isLate = r.status === 'overdue_paid';
     const chip = isLate
       ? '<span class="chip chip-amber">💛 Overdue Paid</span>'
@@ -931,7 +931,7 @@ function renderOverdueList() {
   const el = document.getElementById('homeOverdueList');
   const items = dashboardData.overdue;
   if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Overdue ใน 3 วัน</div>'; return; }
-  el.innerHTML = items.reverse().map(r => `
+  el.innerHTML = items.slice().reverse().map(r => `
     <div class="pending-card status-overdue">
       <div class="pending-store">${r.store_name || '—'}</div>
       <div style="font-size:12px; color:var(--slate); margin-bottom:8px;">
