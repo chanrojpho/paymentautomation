@@ -874,7 +874,22 @@ async function loadDashboard() {
 
 function isRecent(tsStr, since) {
   if (!tsStr) return true;
-  try { const d = new Date(tsStr); return !isNaN(d) && d >= since; } catch(e) { return true; }
+  const d = parseStamp(tsStr);
+  return d ? d >= since : true; // unparseable -> keep visible
+}
+// nowStamp() stores Thai Buddhist dates (DD/MM/พ.ศ. HH:mm) that new Date() can't
+// parse; handle that, and fall back to native parsing for GAS Date.toString() values.
+function parseStamp(tsStr) {
+  const s = String(tsStr).trim();
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2}))?/);
+  if (m) {
+    let y = parseInt(m[3], 10);
+    if (y > 2400) y -= 543; // Buddhist year -> Gregorian
+    const d = new Date(y, parseInt(m[2], 10) - 1, parseInt(m[1], 10), parseInt(m[4] || '0', 10), parseInt(m[5] || '0', 10));
+    return isNaN(d) ? null : d;
+  }
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
 }
 
 function renderDashboard() {
