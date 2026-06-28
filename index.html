@@ -1658,7 +1658,7 @@ async function ovSubmit() {
 // ─── Init ───
 function setToday() {
   const el = document.getElementById('homeToday');
-  if (el) el.textContent = new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  if (el) el.textContent = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
 }
 window.addEventListener('DOMContentLoaded', () => { setToday(); loadDashboard(); });
 </script>
