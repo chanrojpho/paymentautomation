@@ -427,6 +427,10 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
             <div class="record-row"><div class="record-icon">📅</div><div><div class="record-label">วันที่บิล</div><div class="record-val" id="abSum_date">—</div></div></div>
           </div>
         </div>
+        <div class="field-group" style="margin:4px 0 16px;">
+          <label class="field-label">🧑 ชื่อผู้ดูแลบิล (Staff) <span style="color:#dc2626;">*</span></label>
+          <input type="text" class="field-input" id="ab_staff" placeholder="พิมพ์ชื่อเล่นของคุณ เช่น จี๋" autocomplete="off">
+        </div>
         <button class="btn-green" id="abSaveBtn" onclick="abSavePending()">💾 บันทึกลง Pending</button>
       </div>
 
@@ -495,6 +499,8 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
           <div class="record-row"><div class="record-icon">💰</div><div><div class="record-label">ยอดบิล</div><div class="record-val green" id="ab_rec_amount">—</div></div></div>
           <div class="divider"></div>
           <div class="record-row"><div class="record-icon">📅</div><div><div class="record-label">วันที่บิล</div><div class="record-val" id="ab_rec_date">—</div></div></div>
+          <div class="divider"></div>
+          <div class="record-row"><div class="record-icon">🧑</div><div><div class="record-label">ผู้ดูแล</div><div class="record-val" id="ab_rec_staff">—</div></div></div>
         </div>
       </div>
       <button class="btn-primary" onclick="abAddAnother()">➕ เพิ่มบิลอื่น</button>
@@ -948,7 +954,8 @@ function renderPendingList() {
       <div class="pending-meta">
         <div style="margin-bottom:3px;">🚚 Delivery Date: <b>${fmtDate(r.invoice_date)}</b></div>
         <div style="margin-bottom:3px;">💰 ยอดเงิน: <b>${fmtAmt(r.bill_amount)}</b></div>
-        <div>🏭 คลัง: <span class="chip chip-blue">${r.dc_name || '—'}</span></div>
+        <div style="margin-bottom:3px;">🏭 คลัง: <span class="chip chip-blue">${r.dc_name || '—'}</span></div>
+        <div>🧑 ผู้ดูแล: <b>${r.staff || '—'}</b></div>
       </div>
       <div class="pending-actions">
         <button class="btn-pay" onclick='startPaySlip(${JSON.stringify(r)})'>💚 อัปสลิป</button>
@@ -977,6 +984,7 @@ function renderPaidList() {
         &nbsp; ${fmtAmt(r.bill_amount)}
       </div>
       <div style="font-size:12px; color:var(--slate); margin-bottom:4px;">🏭 คลัง: <span class="chip chip-blue">${r.dc_name || '—'}</span></div>
+      <div style="font-size:12px; color:var(--slate); margin-bottom:4px;">🧑 ผู้ดูแล: <b>${r.staff || '—'}</b></div>
       <div style="font-size:11px; color:var(--muted);">บันทึก: ${fmtTime(r.updated_at)}</div>
       <div class="pending-actions" style="margin-top:8px;">
         <button class="btn-del" onclick='deletePending(${JSON.stringify(r)})'>🗑️ ลบ</button>
@@ -1003,6 +1011,7 @@ function renderOverdueList() {
         <div style="margin-bottom:3px;">🚚 Delivery Date: <b>${fmtDate(r.invoice_date)}</b></div>
         <div style="margin-bottom:3px;">💰 ยอดเงิน: <b>${fmtAmt(r.bill_amount)}</b></div>
         <div style="margin-bottom:3px;">🏭 คลัง: <span class="chip chip-blue">${r.dc_name || '—'}</span></div>
+        <div style="margin-bottom:3px;">🧑 ผู้ดูแล: <b>${r.staff || '—'}</b></div>
         ${dayLine}
       </div>
       <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">บันทึก: ${fmtTime(r.updated_at)}</div>
@@ -1032,7 +1041,7 @@ async function deletePending(item) {
   try {
     const res = await fetch(GAS_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'deletePending', pending_id: item['#'] || item._row })
+      body: JSON.stringify({ action: 'deletePending', pending_id: item['#'] || item._row, row: item._row })
     });
     const result = await res.json();
     if (!result.success) throw new Error(result.error || 'ลบไม่สำเร็จ');
@@ -1091,7 +1100,7 @@ async function ovSetDays(pendingId, days) {
 
     // 2) store days for the card, 3) log to Overdue Upload
     await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'setOverdueDays', pending_id: pendingId, days: days, updated_at: sentAt }) });
+      body: JSON.stringify({ action: 'setOverdueDays', pending_id: pendingId, days: days, updated_at: sentAt, row: item._row }) });
     await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'saveOverdue', customer_code: item.store_code, customer_name: item.store_name,
         ceostaff_name: staff.fullName || '', position: staff.position || '', sales_area: staff.area || '', line_id: staff.lineId || '',
@@ -1115,6 +1124,8 @@ function abReset() {
     const el = document.getElementById(id); if(el){ el.value=''; el.classList.remove('ai-filled'); }
   });
   const dc = document.getElementById('ab_dc_name'); if(dc){ dc.value=''; dc.classList.remove('ai-filled'); }
+  const stf = document.getElementById('ab_staff');
+  if(stf){ try { stf.value = localStorage.getItem('twd_staff_name') || ''; } catch(e){ stf.value=''; } }
   clearStatus('abStatusBill');
   clearStatus('abStatusConfirm');
   document.getElementById('abManualSearchBox').style.display = 'none';
@@ -1321,11 +1332,19 @@ async function abSavePending() {
   const store_code = document.getElementById('ab_store_code').value;
   const store_name = document.getElementById('ab_store_name').value;
   const bill_amount = document.getElementById('ab_bill_amount').value;
+  const staff = (document.getElementById('ab_staff').value || '').trim();
 
   if (!dc_name || !store_code || !store_name) {
     showStatus('abStatusConfirm', 'error', 'กรุณากรอกข้อมูลให้ครบ (DC, รหัสร้าน, ชื่อร้าน)');
     return;
   }
+  if (!staff) {
+    showStatus('abStatusConfirm', 'error', 'กรุณากรอกชื่อผู้ดูแลบิล (Staff)');
+    document.getElementById('ab_staff').focus();
+    return;
+  }
+  // Remember the name so the next bill pre-fills it (less retyping)
+  try { localStorage.setItem('twd_staff_name', staff); } catch(e) {}
 
   const btn = document.getElementById('abSaveBtn');
   btn.disabled = true;
@@ -1336,7 +1355,7 @@ async function abSavePending() {
     const res = await fetch(GAS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'savePending', invoice_date, dc_name, store_code, store_name, bill_amount })
+      body: JSON.stringify({ action: 'savePending', invoice_date, dc_name, store_code, store_name, bill_amount, staff })
     });
     const result = await res.json();
     if (!result.success) throw new Error(result.error || 'บันทึกไม่สำเร็จ');
@@ -1346,6 +1365,7 @@ async function abSavePending() {
     document.getElementById('ab_rec_dc').textContent = dc_name;
     document.getElementById('ab_rec_amount').textContent = fmtAmt(bill_amount);
     document.getElementById('ab_rec_date').textContent = fmtDate(invoice_date);
+    document.getElementById('ab_rec_staff').textContent = staff;
 
     document.querySelectorAll('#addBillApp .screen').forEach(s => s.classList.remove('active'));
     document.getElementById('abSuccessScreen').classList.add('show');
@@ -1499,7 +1519,7 @@ async function psSubmit() {
     // Update status in Pending sheet
     await fetch(GAS_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'updateStatus', pending_id: item['#'] || item._row, status: newStatus, updated_at: sentAt })
+      body: JSON.stringify({ action: 'updateStatus', pending_id: item['#'] || item._row, status: newStatus, updated_at: sentAt, row: item._row })
     });
 
     // Save to Bill Upload tab
@@ -1670,13 +1690,13 @@ async function ovSubmit() {
     // Update Pending status
     await fetch(GAS_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'updateStatus', pending_id: currentPendingItem['#'] || currentPendingItem._row, status: 'overdue', updated_at: sentAt })
+      body: JSON.stringify({ action: 'updateStatus', pending_id: currentPendingItem['#'] || currentPendingItem._row, status: 'overdue', updated_at: sentAt, row: currentPendingItem._row })
     });
 
     // Store the overdue days so the Overdue card shows "ค้างชำระ N วัน" right away
     await fetch(GAS_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'setOverdueDays', pending_id: currentPendingItem['#'] || currentPendingItem._row, days: s.daysLate, updated_at: sentAt })
+      body: JSON.stringify({ action: 'setOverdueDays', pending_id: currentPendingItem['#'] || currentPendingItem._row, days: s.daysLate, updated_at: sentAt, row: currentPendingItem._row })
     });
 
     // Save to Overdue Upload tab

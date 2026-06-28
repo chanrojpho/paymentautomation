@@ -31,15 +31,15 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
   }
   if (data.action === 'updateStatus') {
-    var r = updatePendingStatus(data.pending_id, data.status, data.updated_at);
+    var r = updatePendingStatus(data.pending_id, data.status, data.updated_at, data.row);
     return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
   }
   if (data.action === 'deletePending') {
-    var r = deletePendingRow(data.pending_id);
+    var r = deletePendingRow(data.pending_id, data.row);
     return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
   }
   if (data.action === 'setOverdueDays') {
-    var r = setOverdueDays(data.pending_id, data.days, data.updated_at);
+    var r = setOverdueDays(data.pending_id, data.days, data.updated_at, data.row);
     return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
   }
   if (data.action === 'saveHistory') {
@@ -165,21 +165,33 @@ function savePendingToSheet(data) {
     var sheet = ss.getSheetByName(PENDING_TAB);
     if (!sheet) {
       sheet = ss.insertSheet(PENDING_TAB);
-      sheet.appendRow(['#','Store Code','Store Name','DC','Bill Amount','Invoice Date','Status','Created At','Updated At']);
-      sheet.getRange(1,1,1,9).setFontWeight('bold').setBackground('#fef3c7');
+      sheet.appendRow(['#','Store Code','Store Name','DC','Bill Amount','Invoice Date','Status','Created At','Updated At','Overdue Days','Staff']);
+      sheet.getRange(1,1,1,11).setFontWeight('bold').setBackground('#fef3c7');
       sheet.setFrozenRows(1);
     }
+    // ensure/repair the newer headers (sheets created before these columns existed)
+    sheet.getRange(1, 10).setValue('Overdue Days');
+    sheet.getRange(1, 11).setValue('Staff');
 
+    // Scan once: find the last data row AND the highest existing # so the new
+    // bill gets a number that was never used before. Reusing newRow-1 caused
+    // duplicate #s after a delete -> actions hit the wrong row (data loss).
+    var colA = sheet.getRange('A:A').getValues();
     var colB = sheet.getRange('B:B').getValues();
     var lastDataRow = 1;
-    for (var i = colB.length - 1; i >= 1; i--) {
-      if (colB[i][0] !== '' && colB[i][0] !== null) { lastDataRow = i + 1; break; }
+    var maxId = 0;
+    for (var i = 1; i < colB.length; i++) {
+      if (colB[i][0] !== '' && colB[i][0] !== null) {
+        lastDataRow = i + 1;
+        var idn = parseInt(colA[i][0], 10);
+        if (!isNaN(idn) && idn > maxId) maxId = idn;
+      }
     }
     var newRow = lastDataRow + 1;
-    var rowNum = newRow - 1;
+    var rowNum = maxId + 1; // unique, monotonically increasing — never collides
     var now = new Date().toString();
 
-    sheet.getRange(newRow, 1, 1, 9).setValues([[
+    sheet.getRange(newRow, 1, 1, 11).setValues([[
       rowNum,
       data.store_code    || '',
       data.store_name    || '',
@@ -188,7 +200,9 @@ function savePendingToSheet(data) {
       data.invoice_date  || '',
       'pending',
       now,
-      now
+      now,
+      '',
+      data.staff         || ''
     ]]);
     Logger.log('Pending saved: ' + data.store_name + ' row ' + newRow);
     return { success: true, row: newRow, pending_id: rowNum };
@@ -199,20 +213,32 @@ function savePendingToSheet(data) {
 }
 
 // ══════════════════════════════════════════════
-// PENDING TAB — updatePendingStatus
-// Finds row by pending_id (#) and updates Status + Updated At
+// Resolve the target sheet row. Prefer the exact _row the client captured from
+// getPending (always unique) over the # column, which can repeat after deletes
+// and caused actions to hit — and wipe — the wrong customer's row.
 // ══════════════════════════════════════════════
-function updatePendingStatus(pendingId, newStatus, updatedAt) {
+function resolvePendingRow(sheet, explicitRow, pendingId) {
+  var lastRow = sheet.getLastRow();
+  var r = parseInt(explicitRow, 10);
+  if (!isNaN(r) && r >= 2 && r <= lastRow) return r;
+  var colA = sheet.getRange('A:A').getValues();
+  for (var i = 1; i < colA.length; i++) {
+    if (colA[i][0].toString() === String(pendingId)) return i + 1;
+  }
+  return -1;
+}
+
+// ══════════════════════════════════════════════
+// PENDING TAB — updatePendingStatus
+// Finds row by _row (preferred) or pending_id (#) and updates Status + Updated At
+// ══════════════════════════════════════════════
+function updatePendingStatus(pendingId, newStatus, updatedAt, rowHint) {
   try {
     var ss = SpreadsheetApp.openById(SHEET_ID);
     var sheet = ss.getSheetByName(PENDING_TAB);
     if (!sheet) return { success: false, error: 'Pending sheet not found' };
 
-    var colA = sheet.getRange('A:A').getValues();
-    var targetRow = -1;
-    for (var i = 1; i < colA.length; i++) {
-      if (colA[i][0].toString() === pendingId.toString()) { targetRow = i + 1; break; }
-    }
+    var targetRow = resolvePendingRow(sheet, rowHint, pendingId);
     if (targetRow === -1) return { success: false, error: 'pending_id ' + pendingId + ' not found' };
 
     // Column G = Status (7), Column I = Updated At (9)
@@ -228,19 +254,15 @@ function updatePendingStatus(pendingId, newStatus, updatedAt) {
 
 // ══════════════════════════════════════════════
 // PENDING TAB — deletePendingRow
-// Finds row by pending_id (#) and removes it
+// Finds row by _row (preferred) or pending_id (#) and removes it
 // ══════════════════════════════════════════════
-function deletePendingRow(pendingId) {
+function deletePendingRow(pendingId, rowHint) {
   try {
     var ss = SpreadsheetApp.openById(SHEET_ID);
     var sheet = ss.getSheetByName(PENDING_TAB);
     if (!sheet) return { success: false, error: 'Pending sheet not found' };
 
-    var colA = sheet.getRange('A:A').getValues();
-    var targetRow = -1;
-    for (var i = 1; i < colA.length; i++) {
-      if (colA[i][0].toString() === pendingId.toString()) { targetRow = i + 1; break; }
-    }
+    var targetRow = resolvePendingRow(sheet, rowHint, pendingId);
     if (targetRow === -1) return { success: false, error: 'pending_id ' + pendingId + ' not found' };
 
     sheet.deleteRow(targetRow);
@@ -257,7 +279,7 @@ function deletePendingRow(pendingId) {
 // Stores chosen overdue days in the "Overdue Days" column (J)
 // (Payment Due Date = Invoice + days, computed on the client)
 // ══════════════════════════════════════════════
-function setOverdueDays(pendingId, days, updatedAt) {
+function setOverdueDays(pendingId, days, updatedAt, rowHint) {
   try {
     var ss = SpreadsheetApp.openById(SHEET_ID);
     var sheet = ss.getSheetByName(PENDING_TAB);
@@ -265,11 +287,7 @@ function setOverdueDays(pendingId, days, updatedAt) {
 
     sheet.getRange(1, 10).setValue('Overdue Days'); // ensure/repair header
 
-    var colA = sheet.getRange('A:A').getValues();
-    var targetRow = -1;
-    for (var i = 1; i < colA.length; i++) {
-      if (colA[i][0].toString() === pendingId.toString()) { targetRow = i + 1; break; }
-    }
+    var targetRow = resolvePendingRow(sheet, rowHint, pendingId);
     if (targetRow === -1) return { success: false, error: 'pending_id ' + pendingId + ' not found' };
 
     var d = parseInt(days, 10);
