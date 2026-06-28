@@ -1,35 +1,31 @@
 <!DOCTYPE html>
-<html lang="th">
-<head>
+<html lang="th"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>TWD Auto Billing V2</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&family=Mitr:wght@500;600&display=swap" rel="stylesheet">
 <style>
+</style>
+<style>
 /* ─── CSS Variables (same palette as V1) ──────── */
 :root {
-  --cream: #faf8f5; --white: #ffffff;
-  --fur-light: #f5f0e8; --fur-mid: #e8ddd0; --fur-warm: #d4c4b0;
-  --nose-deep: #c97a7a; --eye-deep: #4a8aaa;
-  --charcoal: #2d2d2d; --slate: #5a5a6a; --muted: #9a9aaa; --border: #e8e4de;
-  --green: #5a9a6a; --green-light: #e8f5ec; --green-deep: #3d7a50;
-  --blue-light: #e8f4f8; --red-light: #faeaea; --red: #a04040; --red-deep: #b91c1c;
-  --amber: #f59e0b; --amber-light: #fef3c7; --amber-deep: #92400e;
+  --cream: #FBF7F1; --white: #ffffff;
+  --fur-light: #F4ECE0; --fur-mid: #E7D8C4; --fur-warm: #D8C3A8;
+  --nose-deep: #CC7E8A; --eye-deep: #5E9BB8;
+  --charcoal: #3A352F; --slate: #6B6259; --muted: #A89E92; --border: #ECE3D7;
+  --green: #6DA081; --green-light: #E6F1EA; --green-deep: #4E8265;
+  --blue-light: #E7F1F5; --red-light: #F8E8E4; --red: #A4514A; --red-deep: #C16A5E;
+  --amber: #D69A4C; --amber-light: #FBEEDB; --amber-deep: #9A6B28;
+  --rose-soft: #F7E9EB; --sky-soft: #E7F1F5; --sage-soft: #E6F1EA; --clay-soft: #F8E8E4;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 body {
   font-family: 'Sarabun', sans-serif;
-  background: var(--cream);
+  background-color: var(--cream);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Cg fill='%23D8C3A8' fill-opacity='0.20'%3E%3Cellipse cx='40' cy='54' rx='10' ry='8'/%3E%3Ccircle cx='30' cy='39' r='3.4'/%3E%3Ccircle cx='39' cy='35' r='3.6'/%3E%3Ccircle cx='48' cy='38' r='3.4'/%3E%3Ccircle cx='54' cy='45' r='3'/%3E%3Cellipse cx='108' cy='112' rx='10' ry='8'/%3E%3Ccircle cx='98' cy='97' r='3.4'/%3E%3Ccircle cx='107' cy='93' r='3.6'/%3E%3Ccircle cx='116' cy='96' r='3.4'/%3E%3Ccircle cx='122' cy='103' r='3'/%3E%3C/g%3E%3C/svg%3E");
   min-height: 100vh;
   color: var(--charcoal);
-}
-/* Paw print wallpaper */
-body::before {
-  content: '🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾  🐾';
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  font-size: 22px; letter-spacing: 8px; line-height: 52px; word-break: break-all;
-  opacity: 0.045; pointer-events: none; z-index: 0; padding: 10px; overflow: hidden;
 }
 
 /* ─── Layout shells ──── */
@@ -37,9 +33,9 @@ body::before {
 .app.active { display: block; }
 
 .page-header {
-  background: var(--white); border-bottom: 1.5px solid var(--border);
-  padding: 12px 20px 10px; display: flex; align-items: center; gap: 12px;
-  position: sticky; top: 0; z-index: 10;
+  background: var(--white); border-bottom: 1px solid var(--border);
+  padding: 14px 18px 12px; display: flex; align-items: center; gap: 12px;
+  position: sticky; top: 0; z-index: 10; box-shadow: 0 4px 16px -12px rgba(150,110,80,0.5);
 }
 .back-btn {
   background: none; border: none; cursor: pointer; padding: 0; margin-right: 4px;
@@ -49,7 +45,7 @@ body::before {
 .header-title { font-family: 'Mitr', sans-serif; font-size: 17px; font-weight: 600; color: var(--charcoal); line-height: 1.2; }
 .header-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-.content { background: var(--white); border-radius: 24px 24px 0 0; min-height: calc(100vh - 68px); padding: 24px 16px 48px; }
+.content { background: var(--white); border-radius: 28px 28px 0 0; min-height: calc(100vh - 68px); padding: 24px 16px 48px; box-shadow: 0 -1px 0 var(--border), 0 -12px 30px -22px rgba(150,110,80,0.4); }
 
 /* ─── Steps bar ──── */
 .steps { display: flex; background: var(--white); padding: 0 20px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 68px; z-index: 9; }
@@ -72,46 +68,47 @@ body::before {
 /* ─── Buttons ──── */
 .btn-primary {
   width: 100%; background: var(--charcoal); color: white; border: none;
-  border-radius: 16px; padding: 20px; font-size: 18px; font-weight: 800;
+  border-radius: 18px; padding: 19px; font-size: 18px; font-weight: 800;
   font-family: 'Sarabun', sans-serif; cursor: pointer;
+  box-shadow: 0 8px 20px -8px rgba(58,53,47,0.5), inset 0 1px 0 rgba(255,255,255,0.12);
   transition: opacity 0.15s, transform 0.1s;
 }
 .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
 .btn-primary:active:not(:disabled) { transform: scale(0.98); }
 
 .btn-ai {
-  width: 100%; background: linear-gradient(135deg, var(--eye-deep), #2a6a8a); color: white;
-  border: none; border-radius: 16px; padding: 18px; font-size: 16px; font-weight: 800;
+  width: 100%; background: var(--eye-deep); color: white;
+  border: none; border-radius: 18px; padding: 18px; font-size: 16px; font-weight: 800;
   font-family: 'Sarabun', sans-serif; cursor: pointer; display: flex; align-items: center;
-  justify-content: center; gap: 8px; box-shadow: 0 4px 16px rgba(74,138,170,0.3);
+  justify-content: center; gap: 8px; box-shadow: 0 8px 20px -8px rgba(94,155,184,0.6), inset 0 1px 0 rgba(255,255,255,0.2);
   transition: opacity 0.15s, transform 0.1s;
 }
 .btn-ai:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 .btn-ai:active:not(:disabled) { transform: scale(0.98); }
 
 .btn-green {
-  background: linear-gradient(135deg, var(--green), var(--green-deep)); color: white;
-  border: none; border-radius: 16px; padding: 20px; font-size: 18px; font-weight: 800;
+  background: var(--green); color: white;
+  border: none; border-radius: 18px; padding: 19px; font-size: 18px; font-weight: 800;
   font-family: 'Sarabun', sans-serif; cursor: pointer; width: 100%;
-  box-shadow: 0 4px 16px rgba(90,154,106,0.3);
+  box-shadow: 0 8px 20px -8px rgba(109,160,129,0.65), inset 0 1px 0 rgba(255,255,255,0.25);
   transition: opacity 0.15s, transform 0.1s;
 }
 .btn-green:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 .btn-green:active:not(:disabled) { transform: scale(0.98); }
 
 .btn-red {
-  background: linear-gradient(135deg, #b91c1c, #991b1b); color: white;
-  border: none; border-radius: 16px; padding: 20px; font-size: 18px; font-weight: 800;
+  background: var(--red-deep); color: white;
+  border: none; border-radius: 18px; padding: 19px; font-size: 18px; font-weight: 800;
   font-family: 'Sarabun', sans-serif; cursor: pointer; width: 100%;
-  box-shadow: 0 4px 16px rgba(185,28,28,0.3);
+  box-shadow: 0 8px 20px -8px rgba(193,106,94,0.65), inset 0 1px 0 rgba(255,255,255,0.2);
   transition: opacity 0.15s, transform 0.1s;
 }
 .btn-red:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
 .btn-red:active:not(:disabled) { transform: scale(0.98); }
 
 .btn-outline {
-  background: var(--white); border: 1.5px solid var(--border); border-radius: 14px;
-  padding: 14px; font-size: 15px; font-weight: 600; color: var(--slate);
+  background: var(--white); border: 1.5px solid var(--border); border-radius: 16px;
+  padding: 16px; font-size: 15px; font-weight: 700; color: var(--slate);
   font-family: 'Sarabun', sans-serif; cursor: pointer; width: 100%;
 }
 
@@ -119,7 +116,7 @@ body::before {
 .cam-btn { width: 100%; border: none; border-radius: 20px; padding: 0; cursor: pointer; position: relative; overflow: hidden; margin-bottom: 12px; display: block; transition: transform 0.1s; }
 .cam-btn:active { transform: scale(0.98); }
 .cam-btn input[type=file] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; z-index: 2; }
-.cam-inner { background: var(--fur-light); border-radius: 20px; padding: 28px 20px; text-align: center; border: 2px dashed var(--fur-warm); transition: all 0.2s; }
+.cam-inner { background: var(--fur-light); border-radius: 22px; padding: 30px 20px; text-align: center; border: 2px dashed var(--fur-warm); transition: all 0.2s; }
 .cam-btn.has-file .cam-inner { border-color: var(--green); background: var(--green-light); border-style: solid; }
 .cam-emoji { font-size: 48px; margin-bottom: 10px; display: block; }
 .cam-label { font-size: 17px; font-weight: 700; color: var(--charcoal); }
@@ -157,14 +154,14 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
 /* ─── Tags / chips ──── */
 .chip { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
 .chip-green { background: var(--green-light); color: var(--green-deep); }
-.chip-red { background: #fee2e2; color: #b91c1c; }
+.chip-red { background: var(--clay-soft); color: var(--red); }
 .chip-amber { background: var(--amber-light); color: var(--amber-deep); }
 .chip-blue { background: var(--blue-light); color: var(--eye-deep); }
 
 /* ─── Pending cards ──── */
 .pending-card {
-  background: var(--white); border: 1.5px solid var(--border); border-radius: 16px;
-  padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  background: var(--white); border: 1px solid var(--border); border-radius: 18px;
+  padding: 15px 16px; margin-bottom: 11px; box-shadow: 0 10px 24px -18px rgba(150,110,80,0.55);
 }
 .pending-card.status-paid   { border-left: 4px solid var(--green); }
 .pending-card.status-overdue { border-left: 4px solid var(--red-deep); }
@@ -195,7 +192,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
 .btn-day:active { transform: scale(0.96); }
 
 /* ─── Summary / record cards ──── */
-.record-card { background: white; border-radius: 18px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 20px; }
+.record-card { background: white; border-radius: 20px; box-shadow: 0 14px 30px -18px rgba(150,110,80,0.55); overflow: hidden; margin-bottom: 20px; }
 .record-card-header { padding: 12px 16px; }
 .record-card-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .record-row { display: flex; align-items: flex-start; gap: 12px; }
@@ -213,38 +210,41 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
 /* ─── Tab bar ──── */
 .tab-bar { display: flex; border-bottom: 1.5px solid var(--border); background: var(--white); }
 .tab-btn {
-  flex: 1; padding: 12px 6px; font-size: 13px; font-weight: 600;
+  flex: 1; padding: 14px 6px; font-size: 14px; font-weight: 600;
   font-family: 'Sarabun', sans-serif; background: none; border: none;
-  border-bottom: 2.5px solid transparent; color: var(--muted);
+  border-bottom: 3px solid transparent; color: var(--muted);
   cursor: pointer; margin-bottom: -1.5px; transition: color 0.15s;
 }
-.tab-btn.active { border-bottom-color: var(--charcoal); color: var(--charcoal); font-weight: 700; }
+.tab-btn.active { color: var(--charcoal); font-weight: 700; }
+#homeTabPending.active { border-bottom-color: var(--amber);    color: var(--amber-deep); }
+#homeTabPaid.active    { border-bottom-color: var(--green);    color: var(--green-deep); }
+#homeTabOverdue.active { border-bottom-color: var(--red-deep); color: var(--red); }
 
 /* ─── Section headers ──── */
 .section-header { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
-.section-blue { background: #dbeafe; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
-.section-blue .section-header { color: #1d4ed8; }
-.section-green { background: #dcfce7; border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
-.section-green .section-header { color: #15803d; }
+.section-blue { background: var(--sky-soft); border-radius: 14px; padding: 14px; margin-bottom: 8px; }
+.section-blue .section-header { color: var(--eye-deep); }
+.section-green { background: var(--sage-soft); border-radius: 14px; padding: 14px; margin-bottom: 16px; }
+.section-green .section-header { color: var(--green-deep); }
 
 /* ─── No data ──── */
 .no-data { text-align: center; color: var(--muted); padding: 48px 20px; font-size: 15px; }
 
 /* ─── Amount banner ──── */
 .amount-banner {
-  background: #f0fdf4; border: 2px solid #22c55e; border-radius: 14px;
-  padding: 16px; margin-bottom: 16px; text-align: center;
+  background: var(--sage-soft); border: 1.5px solid var(--green); border-radius: 16px;
+  padding: 18px; margin-bottom: 16px; text-align: center;
 }
-.amount-big { font-size: 32px; font-weight: 800; color: #16a34a; }
+.amount-big { font-size: 32px; font-weight: 800; color: var(--green-deep); }
 .amount-label { font-size: 13px; color: var(--slate); font-weight: 600; }
 
 /* ─── Due date banner ──── */
 .due-banner {
-  background: linear-gradient(135deg, #fff1f2, #fce7e7);
-  border: 2px solid #fca5a5; border-radius: 16px;
+  background: var(--clay-soft);
+  border: 1.5px solid var(--red-deep); border-radius: 16px;
   padding: 18px 16px; margin-bottom: 16px; text-align: center;
 }
-.due-days { font-size: 48px; font-weight: 800; color: #b91c1c; line-height: 1; }
+.due-days { font-size: 48px; font-weight: 800; color: var(--red); line-height: 1; }
 .due-days-label { font-size: 13px; color: #94a3b8; margin-top: 4px; font-weight: 600; }
 .due-date-text { font-size: 15px; font-weight: 700; color: #64748b; margin-top: 6px; }
 
@@ -267,6 +267,8 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
 </head>
 <body>
 
+
+
 <!-- ══════════════════════════════════════════════
      🏠 HOME APP
 ══════════════════════════════════════════════ -->
@@ -275,31 +277,31 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
   <!-- Header -->
   <div class="page-header">
     <svg class="header-cat" viewBox="0 0 46 46" fill="none">
-      <polygon points="5,17 11,4 16,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"/>
-      <polygon points="41,17 35,4 30,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"/>
-      <polygon points="7,16 11,7 15,16" fill="#e8c0c0" opacity="0.6"/>
-      <polygon points="39,16 35,7 31,16" fill="#e8c0c0" opacity="0.6"/>
-      <ellipse cx="23" cy="28" rx="18" ry="17" fill="#f5f0e8" stroke="#d4c4b0" stroke-width="1.1"/>
-      <ellipse cx="23" cy="26" rx="12" ry="11" fill="#faf8f4"/>
-      <ellipse cx="17" cy="24" rx="4" ry="3" fill="#7ab8d4"/>
-      <ellipse cx="29" cy="24" rx="4" ry="3" fill="#7ab8d4"/>
-      <ellipse cx="17" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"/>
-      <ellipse cx="29" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"/>
-      <circle cx="16.3" cy="23" r="0.9" fill="white" opacity="0.8"/>
-      <circle cx="28.3" cy="23" r="0.9" fill="white" opacity="0.8"/>
-      <polygon points="23,29 21.2,27.2 24.8,27.2" fill="#e8a0a0"/>
-      <path d="M21.2,30 Q23,31.8 24.8,30" stroke="#c97a7a" stroke-width="1" fill="none" stroke-linecap="round"/>
-      <line x1="4" y1="27" x2="17" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
-      <line x1="4" y1="30" x2="17" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
-      <line x1="42" y1="27" x2="29" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
-      <line x1="42" y1="30" x2="29" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
+      <polygon points="5,17 11,4 16,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"></polygon>
+      <polygon points="41,17 35,4 30,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"></polygon>
+      <polygon points="7,16 11,7 15,16" fill="#e8c0c0" opacity="0.6"></polygon>
+      <polygon points="39,16 35,7 31,16" fill="#e8c0c0" opacity="0.6"></polygon>
+      <ellipse cx="23" cy="28" rx="18" ry="17" fill="#f5f0e8" stroke="#d4c4b0" stroke-width="1.1"></ellipse>
+      <ellipse cx="23" cy="26" rx="12" ry="11" fill="#faf8f4"></ellipse>
+      <ellipse cx="17" cy="24" rx="4" ry="3" fill="#7ab8d4"></ellipse>
+      <ellipse cx="29" cy="24" rx="4" ry="3" fill="#7ab8d4"></ellipse>
+      <ellipse cx="17" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"></ellipse>
+      <ellipse cx="29" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"></ellipse>
+      <circle cx="16.3" cy="23" r="0.9" fill="white" opacity="0.8"></circle>
+      <circle cx="28.3" cy="23" r="0.9" fill="white" opacity="0.8"></circle>
+      <polygon points="23,29 21.2,27.2 24.8,27.2" fill="#e8a0a0"></polygon>
+      <path d="M21.2,30 Q23,31.8 24.8,30" stroke="#c97a7a" stroke-width="1" fill="none" stroke-linecap="round"></path>
+      <line x1="4" y1="27" x2="17" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"></line>
+      <line x1="4" y1="30" x2="17" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"></line>
+      <line x1="42" y1="27" x2="29" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"></line>
+      <line x1="42" y1="30" x2="29" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"></line>
     </svg>
     <div>
       <div class="header-title">TWD Payment Portal</div>
       <div class="header-sub">Today Date: <span id="homeToday">—</span></div>
     </div>
     <!-- Add bill button -->
-    <button onclick="gotoAddBill()" style="margin-left:auto; background:var(--charcoal); color:white; border:none; border-radius:12px; padding:10px 16px; font-size:14px; font-weight:700; font-family:Sarabun,sans-serif; cursor:pointer; white-space:nowrap;">
+    <button onclick="gotoAddBill()" style="margin-left:auto; background:var(--nose-deep); color:white; border:none; border-radius:14px; padding:11px 17px; font-size:14px; font-weight:700; font-family:Sarabun,sans-serif; cursor:pointer; white-space:nowrap; box-shadow:0 8px 18px -8px rgba(204,126,138,0.7);">
       ➕ add bills
     </button>
   </div>
@@ -307,7 +309,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
   <!-- Dashboard tabs -->
   <div class="tab-bar">
     <button class="tab-btn active" id="homeTabPending" onclick="switchHomeTab('pending')">⏳ Bills Upload</button>
-    <button class="tab-btn" id="homeTabPaid"    onclick="switchHomeTab('paid')">✅ Paid</button>
+    <button class="tab-btn" id="homeTabPaid" onclick="switchHomeTab('paid')">✅ Paid</button>
     <button class="tab-btn" id="homeTabOverdue" onclick="switchHomeTab('overdue')">😿 Overdue</button>
   </div>
 
@@ -321,7 +323,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
 
     <div id="homeStatus" class="status-box"></div>
     <div id="homePendingList"></div>
-    <div id="homePaidList"    style="display:none;"></div>
+    <div id="homePaidList" style="display:none;"></div>
     <div id="homeOverdueList" style="display:none;"></div>
   </div>
 </div>
@@ -336,24 +338,24 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
     </button>
     <svg class="header-cat" viewBox="0 0 46 46" fill="none">
-      <polygon points="5,17 11,4 16,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"/>
-      <polygon points="41,17 35,4 30,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"/>
-      <polygon points="7,16 11,7 15,16" fill="#e8c0c0" opacity="0.6"/>
-      <polygon points="39,16 35,7 31,16" fill="#e8c0c0" opacity="0.6"/>
-      <ellipse cx="23" cy="28" rx="18" ry="17" fill="#f5f0e8" stroke="#d4c4b0" stroke-width="1.1"/>
-      <ellipse cx="23" cy="26" rx="12" ry="11" fill="#faf8f4"/>
-      <ellipse cx="17" cy="24" rx="4" ry="3" fill="#7ab8d4"/>
-      <ellipse cx="29" cy="24" rx="4" ry="3" fill="#7ab8d4"/>
-      <ellipse cx="17" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"/>
-      <ellipse cx="29" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"/>
-      <circle cx="16.3" cy="23" r="0.9" fill="white" opacity="0.8"/>
-      <circle cx="28.3" cy="23" r="0.9" fill="white" opacity="0.8"/>
-      <polygon points="23,29 21.2,27.2 24.8,27.2" fill="#e8a0a0"/>
-      <path d="M21.2,30 Q23,31.8 24.8,30" stroke="#c97a7a" stroke-width="1" fill="none" stroke-linecap="round"/>
-      <line x1="4" y1="27" x2="17" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
-      <line x1="4" y1="30" x2="17" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
-      <line x1="42" y1="27" x2="29" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
-      <line x1="42" y1="30" x2="29" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"/>
+      <polygon points="5,17 11,4 16,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"></polygon>
+      <polygon points="41,17 35,4 30,17" fill="#f0e8dc" stroke="#d4c4b0" stroke-width="1.1"></polygon>
+      <polygon points="7,16 11,7 15,16" fill="#e8c0c0" opacity="0.6"></polygon>
+      <polygon points="39,16 35,7 31,16" fill="#e8c0c0" opacity="0.6"></polygon>
+      <ellipse cx="23" cy="28" rx="18" ry="17" fill="#f5f0e8" stroke="#d4c4b0" stroke-width="1.1"></ellipse>
+      <ellipse cx="23" cy="26" rx="12" ry="11" fill="#faf8f4"></ellipse>
+      <ellipse cx="17" cy="24" rx="4" ry="3" fill="#7ab8d4"></ellipse>
+      <ellipse cx="29" cy="24" rx="4" ry="3" fill="#7ab8d4"></ellipse>
+      <ellipse cx="17" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"></ellipse>
+      <ellipse cx="29" cy="24" rx="1.8" ry="2.6" fill="#2d2d2d"></ellipse>
+      <circle cx="16.3" cy="23" r="0.9" fill="white" opacity="0.8"></circle>
+      <circle cx="28.3" cy="23" r="0.9" fill="white" opacity="0.8"></circle>
+      <polygon points="23,29 21.2,27.2 24.8,27.2" fill="#e8a0a0"></polygon>
+      <path d="M21.2,30 Q23,31.8 24.8,30" stroke="#c97a7a" stroke-width="1" fill="none" stroke-linecap="round"></path>
+      <line x1="4" y1="27" x2="17" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"></line>
+      <line x1="4" y1="30" x2="17" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"></line>
+      <line x1="42" y1="27" x2="29" y2="28.2" stroke="#b0a090" stroke-width="0.7" opacity="0.7"></line>
+      <line x1="42" y1="30" x2="29" y2="29.4" stroke="#b0a090" stroke-width="0.7" opacity="0.7"></line>
     </svg>
     <div>
       <div class="header-title">เพิ่มบิลใหม่</div>
@@ -392,7 +394,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
 
       <div id="abStatusBill" class="status-box"></div>
 
-      <button onclick="abGoManual()" style="width:100%; background:linear-gradient(135deg,#0000f9,#86007d); color:white; border:none; border-radius:16px; padding:16px 8px; font-size:15px; font-weight:800; font-family:Sarabun,sans-serif; cursor:pointer; box-shadow:0 4px 16px rgba(134,0,125,0.35); margin-top:4px;">
+      <button onclick="abGoManual()" style="width:100%; background:var(--sky-soft); color:var(--eye-deep); border:1.5px solid #cfe4ec; border-radius:16px; padding:16px 8px; font-size:15px; font-weight:800; font-family:Sarabun,sans-serif; cursor:pointer; margin-top:4px;">
         ✏️ ค้นหาร้าน + กรอกเอง
       </button>
     </div>
@@ -438,7 +440,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
         </div>
 
         <div class="section-blue">
-          <div class="section-header" style="color:#1d4ed8;" id="abAiLabel">✏️ แก้ไขข้อมูล</div>
+          <div class="section-header" style="color:var(--eye-deep);" id="abAiLabel">✏️ แก้ไขข้อมูล</div>
           <div class="field-group">
             <label class="field-label">วันที่บิล (Invoice Date)</label>
             <input type="date" class="field-input ai-filled" id="ab_invoice_date">
@@ -456,13 +458,11 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
           </div>
           <div id="abStoreCodeGroup" class="field-group">
             <label class="field-label">รหัสร้านค้า</label>
-            <input type="text" class="field-input ai-filled" id="ab_store_code" placeholder="เช่น V10250-6800630007"
-              onblur="if(this.value.length>5) abLookupStoreName(this.value)">
+            <input type="text" class="field-input ai-filled" id="ab_store_code" placeholder="เช่น V10250-6800630007" onblur="if(this.value.length&gt;5) abLookupStoreName(this.value)">
           </div>
           <div class="field-group" style="margin-bottom:0;">
             <label class="field-label">ยอดบิล (บาท)</label>
-            <input type="text" inputmode="decimal" class="field-input ai-filled" id="ab_bill_amount" placeholder="เช่น 4800.00"
-              style="font-size:22px; font-weight:800; color:#16a34a;">
+            <input type="text" inputmode="decimal" class="field-input ai-filled" id="ab_bill_amount" placeholder="เช่น 4800.00" style="font-size:22px; font-weight:800; color:#16a34a;">
           </div>
         </div>
 
@@ -502,7 +502,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
     </div>
   </div>
 
-</div><!-- end addBillApp -->
+<!-- end addBillApp -->
 
 <!-- ══════════════════════════════════════════════
      💳 PAY SLIP APP — อัปสลิป for a pending item
@@ -558,7 +558,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
       </label>
 
       <div id="psStatus" class="status-box"></div>
-      <button class="btn-green" id="psSubmitBtn" disabled onclick="psSubmit()">✅ ส่งสลิปไปตะวันแดง</button>
+      <button class="btn-green" id="psSubmitBtn" disabled="" onclick="psSubmit()">✅ ส่งสลิปไปตะวันแดง</button>
     </div>
   </div>
 
@@ -677,7 +677,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
       </div>
 
       <div id="ovStatus1" class="status-box"></div>
-      <button class="btn-primary" id="ovNext1" disabled onclick="ovGoStep(2)">ยืนยัน →</button>
+      <button class="btn-primary" id="ovNext1" disabled="" onclick="ovGoStep(2)">ยืนยัน →</button>
     </div>
   </div>
 
@@ -1694,5 +1694,6 @@ function setToday() {
 }
 window.addEventListener('DOMContentLoaded', () => { setToday(); loadDashboard(); });
 </script>
-</body>
-</html>
+
+
+</body></html>
