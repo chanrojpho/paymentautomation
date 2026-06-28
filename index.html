@@ -895,8 +895,9 @@ function renderPendingList() {
     <div class="pending-card status-pending">
       <div class="pending-store">${r.store_name || '—'}</div>
       <div class="pending-meta">
-        <span class="chip chip-blue">${r.dc_name || '—'}</span>
-        &nbsp; ${fmtDate(r.invoice_date)} &nbsp;•&nbsp; ${fmtAmt(r.bill_amount)}
+        <div style="margin-bottom:3px;">🚚 Delivery Date: <b>${fmtDate(r.invoice_date)}</b></div>
+        <div style="margin-bottom:3px;">💰 ยอดเงิน: <b>${fmtAmt(r.bill_amount)}</b></div>
+        <div>🏭 คลัง: <span class="chip chip-blue">${r.dc_name || '—'}</span></div>
       </div>
       <div class="pending-actions">
         <button class="btn-pay" onclick='startPaySlip(${JSON.stringify(r)})'>💚 อัปสลิป</button>
