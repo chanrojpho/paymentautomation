@@ -347,8 +347,8 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
     </div>
   </div>
   <div class="content" style="padding:16px 16px 48px;">
-    <div class="screen-title" style="font-size:16px;">🟢 จ่ายตรงเวลามากที่สุด</div>
-    <div class="screen-sub">เรียงตามจำนวนครั้งที่จ่ายตรงเวลา</div>
+    <div class="screen-title" style="font-size:16px;">🟢 คะแนนการจ่ายเงิน (เต็ม 10)</div>
+    <div class="screen-sub">จ่ายในวัน = 10 · สาย 1 วัน = 9 · 2 = 8 · 3 = 7 · 4 = 6 · สาย 5 วันขึ้นไป = 5 — เฉลี่ยทุกบิล</div>
     <div id="rankOnTimeList" style="margin-top:10px;"></div>
     <div class="screen-title" style="font-size:16px; margin-top:24px;">📅 ยอดขายสูงสุด 7 วัน</div>
     <div class="screen-sub">ลูกค้าที่ซื้อมากที่สุดใน 7 วันล่าสุด</div>
@@ -992,7 +992,7 @@ function computeStoreStats() {
   const byStore = {};
   all.forEach(r => {
     const key = (r.store_code || r.store_name || '?').toString();
-    if (!byStore[key]) byStore[key] = { name: r.store_name || key, paid: 0, late: 0, overdue: 0, total: 0, week: 0 };
+    if (!byStore[key]) byStore[key] = { name: r.store_name || key, paid: 0, late: 0, overdue: 0, total: 0, week: 0, scoreSum: 0, scored: 0 };
     const g = byStore[key];
     if (r.store_name) g.name = r.store_name;
     const amt = parseAmt(r.bill_amount);
@@ -1000,6 +1000,13 @@ function computeStoreStats() {
     if (r.status === 'paid') g.paid++;
     else if (r.status === 'overdue_paid') g.late++;
     else if (r.status === 'overdue') g.overdue++;
+    // payment score per paid bill: on time = 10, -1 per late day, floor 5 (5+ days)
+    if (r.status === 'paid') { g.scoreSum += 10; g.scored++; }
+    else if (r.status === 'overdue_paid') {
+      let dl = parseInt(r.overdue_days, 10);
+      if (isNaN(dl) || dl < 1) dl = 1; // late but days unknown -> count as 1 day
+      g.scoreSum += Math.max(5, 10 - dl); g.scored++;
+    }
     const d = new Date(r.invoice_date);
     if (!isNaN(d) && d >= wk) g.week += amt;
   });
@@ -1031,9 +1038,9 @@ function renderLeaderboard() {
 // Full Ranking screen: who pays on time the most + highest sales (last 7 days)
 function openRanking() {
   const arr = computeStoreStats();
-  const onTime = arr.filter(g => g.paid > 0)
-    .map(g => ({ ...g, rate: g.paid / (g.paid + g.late) }))
-    .sort((a, b) => b.paid - a.paid || b.rate - a.rate);
+  const onTime = arr.filter(g => g.scored > 0)
+    .map(g => ({ ...g, score: g.scoreSum / g.scored }))
+    .sort((a, b) => b.score - a.score || b.scored - a.scored);
   const week = arr.filter(g => g.week > 0).sort((a, b) => b.week - a.week);
 
   const medal = i => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '#' + (i + 1);
@@ -1045,8 +1052,8 @@ function openRanking() {
     </div>`;
 
   document.getElementById('rankOnTimeList').innerHTML = onTime.length
-    ? onTime.map((g, i) => rankRow(i, g.name, `ตรงเวลา ${g.paid} ครั้ง · ${Math.round(g.rate * 100)}%`)).join('')
-    : '<div class="no-data">ยังไม่มีข้อมูลการจ่ายตรงเวลา</div>';
+    ? onTime.map((g, i) => rankRow(i, g.name, `${g.score.toFixed(1)}/10 · ${g.scored} บิล`)).join('')
+    : '<div class="no-data">ยังไม่มีข้อมูลการจ่ายเงิน</div>';
   document.getElementById('rankWeekList').innerHTML = week.length
     ? week.map((g, i) => rankRow(i, g.name, moneyTHB(g.week))).join('')
     : '<div class="no-data">ยังไม่มียอดขายใน 7 วันนี้</div>';
