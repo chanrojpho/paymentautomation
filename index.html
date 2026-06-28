@@ -180,6 +180,13 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
 .pending-actions button:active { transform: scale(0.97); }
 .btn-pay { background: var(--green-light); color: var(--green-deep); }
 .btn-overdue-sm { background: #fee2e2; color: #b91c1c; }
+.btn-del {
+  border: none; border-radius: 12px; padding: 10px 14px; font-size: 14px;
+  font-weight: 700; font-family: 'Sarabun', sans-serif; cursor: pointer;
+  background: #f1f5f9; color: #64748b; flex: 0 0 auto;
+}
+.pending-actions .btn-del { flex: 0 0 auto; }
+.btn-del:active { transform: scale(0.97); }
 
 /* ─── Summary / record cards ──── */
 .record-card { background: white; border-radius: 18px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 20px; }
@@ -916,6 +923,7 @@ function renderPendingList() {
       <div class="pending-actions">
         <button class="btn-pay" onclick='startPaySlip(${JSON.stringify(r)})'>💚 อัปสลิป</button>
         <button class="btn-overdue-sm" onclick='startOverdue(${JSON.stringify(r)})'>🔴 ค้างชำระ</button>
+        <button class="btn-del" onclick='deletePending(${JSON.stringify(r)})'>🗑️</button>
       </div>
     </div>
   `).join('');
@@ -938,6 +946,9 @@ function renderPaidList() {
         &nbsp; ${fmtDate(r.invoice_date)} &nbsp;•&nbsp; ${fmtAmt(r.bill_amount)}
       </div>
       <div style="font-size:11px; color:var(--muted);">บันทึก: ${fmtTime(r.updated_at)}</div>
+      <div class="pending-actions" style="margin-top:8px;">
+        <button class="btn-del" onclick='deletePending(${JSON.stringify(r)})'>🗑️ ลบ</button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -956,9 +967,26 @@ function renderOverdueList() {
       <div style="font-size:11px; color:var(--muted); margin-bottom:10px;">บันทึก: ${fmtTime(r.updated_at)}</div>
       <div class="pending-actions">
         <button class="btn-pay" onclick='startPaySlip(${JSON.stringify(r)}, true)'>💛 รับเงินแล้ว</button>
+        <button class="btn-del" onclick='deletePending(${JSON.stringify(r)})'>🗑️</button>
       </div>
     </div>
   `).join('');
+}
+
+async function deletePending(item) {
+  if (!confirm('ลบบิลนี้?\n' + (item.store_name || '') + ' • ' + fmtAmt(item.bill_amount) + '\n(ลบแล้วกู้คืนไม่ได้)')) return;
+  showStatus('homeStatus', 'info', 'กำลังลบ...');
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'deletePending', pending_id: item['#'] || item._row })
+    });
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || 'ลบไม่สำเร็จ');
+    await loadDashboard();
+  } catch(err) {
+    showStatus('homeStatus', 'error', 'ลบไม่สำเร็จ: ' + err.message);
+  }
 }
 
 // ══════════════════════════════════════════════

@@ -34,6 +34,10 @@ function doPost(e) {
     var r = updatePendingStatus(data.pending_id, data.status, data.updated_at);
     return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
   }
+  if (data.action === 'deletePending') {
+    var r = deletePendingRow(data.pending_id);
+    return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
+  }
   if (data.action === 'saveHistory') {
     var r = saveSlipToSheet(data);
     return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
@@ -191,6 +195,32 @@ function updatePendingStatus(pendingId, newStatus, updatedAt) {
     return { success: true, row: targetRow };
   } catch(err) {
     Logger.log('updatePendingStatus error: ' + err);
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ══════════════════════════════════════════════
+// PENDING TAB — deletePendingRow
+// Finds row by pending_id (#) and removes it
+// ══════════════════════════════════════════════
+function deletePendingRow(pendingId) {
+  try {
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+    var sheet = ss.getSheetByName(PENDING_TAB);
+    if (!sheet) return { success: false, error: 'Pending sheet not found' };
+
+    var colA = sheet.getRange('A:A').getValues();
+    var targetRow = -1;
+    for (var i = 1; i < colA.length; i++) {
+      if (colA[i][0].toString() === pendingId.toString()) { targetRow = i + 1; break; }
+    }
+    if (targetRow === -1) return { success: false, error: 'pending_id ' + pendingId + ' not found' };
+
+    sheet.deleteRow(targetRow);
+    Logger.log('Deleted pending row ' + targetRow + ' (id ' + pendingId + ')');
+    return { success: true, row: targetRow };
+  } catch(err) {
+    Logger.log('deletePendingRow error: ' + err);
     return { success: false, error: err.toString() };
   }
 }
