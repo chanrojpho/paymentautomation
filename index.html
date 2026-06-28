@@ -858,6 +858,10 @@ async function loadDashboard() {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
+    // getPending returns the sheet's "DC" column as key `dc`; mirror it to
+    // dc_name, which the cards and the slip/overdue submits all read.
+    data.forEach(r => { if (!r.dc_name && r.dc) r.dc_name = r.dc; });
+
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
     threeDaysAgo.setHours(0, 0, 0, 0);
