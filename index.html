@@ -306,6 +306,9 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
     </button>
   </div>
 
+  <!-- 🏆 Customer leaderboard (best payers / top spend / top this week) -->
+  <div style="padding:14px 16px 0;"><div id="homeLeaderboard"></div></div>
+
   <!-- Dashboard tabs -->
   <div class="tab-bar">
     <button class="tab-btn active" id="homeTabPending" onclick="switchHomeTab('pending')">⏳ Bills Upload</button>
@@ -321,6 +324,7 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
       <button onclick="loadDashboard()" style="background:none; border:none; font-size:12px; color:var(--muted); cursor:pointer; font-family:Sarabun,sans-serif;">↻ โหลดใหม่</button>
     </div>
 
+    <div id="homeDcChips" style="display:none; flex-wrap:wrap; margin-bottom:10px;"></div>
     <div id="homeStatus" class="status-box"></div>
     <div id="homePendingList"></div>
     <div id="homePaidList" style="display:none;"></div>
@@ -849,10 +853,12 @@ function clearStatus(boxId) {
 // ══════════════════════════════════════════════
 // HOME DASHBOARD
 // ══════════════════════════════════════════════
-let dashboardData = { pending: [], paid: [], overdue: [] };
+let dashboardData = { pending: [], paid: [], overdue: [], all: [] };
+let homeDcFilter = ''; // '' = all DCs; set by the Paid/Overdue filter chips
 
 function switchHomeTab(tab) {
   homeTab = tab;
+  homeDcFilter = ''; // reset DC filter when changing tabs
   ['pending','paid','overdue'].forEach(t => {
     const btn = document.getElementById('homeTab' + t.charAt(0).toUpperCase() + t.slice(1));
     if (btn) btn.className = 'tab-btn' + (t === tab ? ' active' : '');
@@ -906,6 +912,7 @@ async function loadDashboard() {
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
     threeDaysAgo.setHours(0, 0, 0, 0);
 
+    dashboardData.all      = data;
     dashboardData.pending  = data.filter(r => r.status === 'pending');
     dashboardData.paid     = data.filter(r => (r.status === 'paid' || r.status === 'overdue_paid') && isRecent(r.updated_at, threeDaysAgo));
     dashboardData.overdue  = data.filter(r => r.status === 'overdue' && isRecent(r.updated_at, threeDaysAgo));
@@ -938,10 +945,89 @@ function parseStamp(tsStr) {
 }
 
 function renderDashboard() {
+  renderLeaderboard();
+  renderDcChips();
   renderPendingList();
   renderPaidList();
   renderOverdueList();
 }
+
+// Parse "4,800.00" / "4800" / numbers -> Number
+function parseAmt(v) {
+  return parseFloat((v == null ? '' : v).toString().replace(/[^0-9.]/g, '')) || 0;
+}
+
+// 🏆 Leaderboard — best on-time payer, highest total spend, highest this week.
+// Computed from ALL bills (dashboardData.all), grouped by store.
+function renderLeaderboard() {
+  const el = document.getElementById('homeLeaderboard');
+  if (!el) return;
+  const all = dashboardData.all || [];
+  if (!all.length) { el.innerHTML = ''; return; }
+
+  const wk = new Date(); wk.setDate(wk.getDate() - 7); wk.setHours(0, 0, 0, 0);
+  const byStore = {};
+  all.forEach(r => {
+    const key = (r.store_code || r.store_name || '?').toString();
+    if (!byStore[key]) byStore[key] = { name: r.store_name || key, paid: 0, late: 0, overdue: 0, total: 0, week: 0 };
+    const g = byStore[key];
+    if (r.store_name) g.name = r.store_name;
+    const amt = parseAmt(r.bill_amount);
+    g.total += amt;
+    if (r.status === 'paid') g.paid++;
+    else if (r.status === 'overdue_paid') g.late++;
+    else if (r.status === 'overdue') g.overdue++;
+    const d = new Date(r.invoice_date);
+    if (!isNaN(d) && d >= wk) g.week += amt;
+  });
+  const arr = Object.values(byStore);
+
+  // best payer = highest on-time rate among customers with >=1 on-time payment
+  const onTime = arr.filter(g => g.paid > 0)
+    .map(g => ({ g, settled: g.paid + g.late, rate: g.paid / (g.paid + g.late) }))
+    .sort((a, b) => b.rate - a.rate || b.g.paid - a.g.paid || b.settled - a.settled)[0];
+  const topSpend = arr.slice().sort((a, b) => b.total - a.total)[0];
+  const topWeek = arr.filter(g => g.week > 0).sort((a, b) => b.week - a.week)[0];
+
+  const money = n => '฿' + Math.round(n).toLocaleString('en-US');
+  const row = (emoji, label, name, value) => `
+    <div style="display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid rgba(0,0,0,0.06);">
+      <div style="font-size:20px;">${emoji}</div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-size:11px; color:var(--muted); font-weight:700;">${label}</div>
+        <div style="font-size:14px; font-weight:800; color:var(--charcoal); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}</div>
+      </div>
+      <div style="font-size:13px; font-weight:800; color:var(--eye-deep); text-align:right; white-space:nowrap;">${value}</div>
+    </div>`;
+
+  el.innerHTML = `
+    <div style="background:linear-gradient(135deg,#fff7ed,#fef3c7); border-radius:18px; padding:4px 16px 12px;">
+      <div style="font-family:'Mitr',sans-serif; font-size:14px; font-weight:700; color:var(--charcoal); padding:11px 0 2px;">🏆 อันดับลูกค้า</div>
+      ${onTime ? row('🟢', 'จ่ายตรงเวลาที่สุด', onTime.g.name, `${Math.round(onTime.rate * 100)}% · ${onTime.g.paid}/${onTime.settled}`) : ''}
+      ${topSpend ? row('💰', 'ยอดซื้อสูงสุด', topSpend.name, money(topSpend.total)) : ''}
+      ${topWeek ? row('📅', 'ยอดสูงสุดสัปดาห์นี้', topWeek.name, money(topWeek.week)) : row('📅', 'ยอดสูงสุดสัปดาห์นี้', '—', '—')}
+    </div>`;
+}
+
+// DC filter chips — shown on the Paid and Overdue tabs only.
+function renderDcChips() {
+  const el = document.getElementById('homeDcChips');
+  if (!el) return;
+  if (homeTab !== 'paid' && homeTab !== 'overdue') { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const src = homeTab === 'paid' ? dashboardData.paid : dashboardData.overdue;
+  const dcs = [...new Set((src || []).map(r => r.dc_name).filter(Boolean))];
+  if (dcs.length <= 1) { el.style.display = 'none'; el.innerHTML = ''; return; } // nothing to filter
+  const chip = (label, val) => {
+    const active = (homeDcFilter || '') === val;
+    const css = active
+      ? 'background:var(--eye-deep); color:#fff; border-color:var(--eye-deep);'
+      : 'background:#fff; color:var(--eye-deep); border-color:#cfe4ec;';
+    return `<button onclick="setDcFilter('${val.replace(/'/g, "\\'")}')" style="${css} padding:6px 13px; border-radius:999px; font-size:12px; font-weight:700; font-family:Sarabun,sans-serif; border:1.5px solid; cursor:pointer; margin:0 6px 6px 0;">${label}</button>`;
+  };
+  el.innerHTML = chip('ทั้งหมด', '') + dcs.map(dc => chip(dc, dc)).join('');
+  el.style.display = 'flex';
+}
+function setDcFilter(dc) { homeDcFilter = dc; renderDashboard(); }
 
 function renderPendingList() {
   const el = document.getElementById('homePendingList');
@@ -970,8 +1056,9 @@ function renderPendingList() {
 
 function renderPaidList() {
   const el = document.getElementById('homePaidList');
-  const items = dashboardData.paid;
-  if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Paid (latest 3 days)</div>'; return; }
+  let items = dashboardData.paid;
+  if (homeDcFilter) items = items.filter(r => (r.dc_name || '') === homeDcFilter);
+  if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Paid' + (homeDcFilter ? ' ใน ' + homeDcFilter : ' (latest 3 days)') + '</div>'; return; }
   el.innerHTML = items.slice().reverse().map(r => {
     const isLate = r.status === 'overdue_paid';
     const chip = isLate
@@ -997,8 +1084,9 @@ function renderPaidList() {
 
 function renderOverdueList() {
   const el = document.getElementById('homeOverdueList');
-  const items = dashboardData.overdue;
-  if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Overdue (latest 3 days)</div>'; return; }
+  let items = dashboardData.overdue;
+  if (homeDcFilter) items = items.filter(r => (r.dc_name || '') === homeDcFilter);
+  if (!items.length) { el.innerHTML = '<div class="no-data">ไม่มีรายการ Overdue' + (homeDcFilter ? ' ใน ' + homeDcFilter : ' (latest 3 days)') + '</div>'; return; }
   el.innerHTML = items.slice().reverse().map(r => {
     const id = r['#'] || r._row;
     const days = parseInt(r.overdue_days, 10);
