@@ -645,7 +645,6 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
         <label class="field-label">พนักงานขาย <span class="chip chip-red">required</span></label>
         <select class="field-input" id="ovStaffSelect" onchange="ovFillStaff(this.value)">
           <option value="">-- เลือกพนักงาน --</option>
-          <option value="จันโรจน์">จันโรจน์ พงศ์อายุกูล</option>
         </select>
       </div>
 
@@ -760,9 +759,7 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbxaaA7cVhsExjQEEFW8jA-C
 const TARGET_SUBMIT_URL = "https://n8n-01.carabao.co.th/api/submit-delivery-form";
 // Overdue is submitted THROUGH GAS (action: 'submitOverdue') to bypass Cloudflare/CORS — endpoint lives in Code_V2.gs (OVERDUE_URL)
 
-const STAFF_DATA = {
-  'จันโรจน์': { fullName: 'จันโรจน์ พงศ์อายุกูล', nickname: 'จี๋', position: 'CEO Office', area: 'ตะวันออก', lineId: 'juggajejee' }
-};
+let STAFF_DATA = {}; // populated from the Staff sheet tab via loadStaff()
 
 const DC_OPTIONS = ['วัดกู้', 'บางพลี', 'พระราม 3', 'ชลบุรี', 'เชียงใหม่'];
 
@@ -857,6 +854,33 @@ function switchHomeTab(tab) {
   const titles = { pending: '⏳ Bills Upload', paid: '✅ Paid (latest 3 days)', overdue: '😿 Overdue (latest 3 days)' };
   document.getElementById('homeTabTitle').textContent = titles[tab] || '';
   renderDashboard();
+}
+
+// Load staff list from the Staff sheet tab -> STAFF_DATA + the overdue dropdown
+async function loadStaff() {
+  try {
+    const res = await fetch(GAS_URL + '?action=getStaff');
+    const data = await res.json();
+    if (!Array.isArray(data)) return;
+    const next = {};
+    let opts = '<option value="">-- เลือกพนักงาน --</option>';
+    data.forEach(r => {
+      const fullName = (r.full_name || '').trim();
+      if (!fullName) return;
+      next[fullName] = {
+        fullName,
+        nickname: (r.nickname || '').trim(),
+        position: (r.position || '').trim(),
+        area: (r.area || '').trim(),
+        lineId: (r.line_id || '').trim()
+      };
+      opts += `<option value="${fullName}">${fullName}</option>`;
+    });
+    if (!Object.keys(next).length) return; // keep current dropdown if empty
+    STAFF_DATA = next;
+    const sel = document.getElementById('ovStaffSelect');
+    if (sel) sel.innerHTML = opts;
+  } catch(err) { /* keep existing dropdown on failure */ }
 }
 
 async function loadDashboard() {
@@ -1692,7 +1716,7 @@ function setToday() {
   const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   el.textContent = `${d.getDate()} ${mon[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
-window.addEventListener('DOMContentLoaded', () => { setToday(); loadDashboard(); });
+window.addEventListener('DOMContentLoaded', () => { setToday(); loadStaff(); loadDashboard(); });
 </script>
 
 

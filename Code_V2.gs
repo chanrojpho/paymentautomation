@@ -129,6 +129,29 @@ function doGet(e) {
     }
   }
 
+  if (e.parameter.action === 'getStaff') {
+    try {
+      var ss = SpreadsheetApp.openById(SHEET_ID);
+      var sheet = ss.getSheetByName('Staff');
+      if (!sheet) return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+      var rows = sheet.getDataRange().getValues();
+      var headers = rows[0];
+      var result = [];
+      for (var i = 1; i < rows.length; i++) {
+        var row = rows[i];
+        if (!row[0] || row[0] === '') continue;
+        var obj = {};
+        for (var j = 0; j < headers.length; j++) {
+          obj[headers[j].toString().trim().toLowerCase().replace(/ /g,'_')] = row[j] ? row[j].toString() : '';
+        }
+        result.push(obj);
+      }
+      return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+    } catch(err) {
+      return ContentService.createTextOutput(JSON.stringify({ error: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   return ContentService.createTextOutput(JSON.stringify({ status: "ok", version: "v2" })).setMimeType(ContentService.MimeType.JSON);
 }
 
