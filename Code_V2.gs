@@ -13,6 +13,11 @@ var PENDING_TAB  = "Pending";
 var SLIP_TAB     = "Bill Upload";
 var OVERDUE_TAB  = "Overdue Upload";
 
+// ── Daily reminder email (ผู้ดูแล จี๋) ──
+var REMINDER_EMAIL    = "chanrojphongay@gmail.com"; // where the nightly reminder goes (จี๋'s email)
+var REMINDER_STAFF    = ["จี๋", "จันโรจน์"];          // a Pending row is "จี๋'s" if its Staff cell CONTAINS one of these
+var REMINDER_STATUSES = ["pending", "overdue"];      // statuses to remind about (bills with money still owed)
+
 // ══════════════════════════════════════════════
 // POST ROUTER
 // ══════════════════════════════════════════════
@@ -23,8 +28,12 @@ function doPost(e) {
     return callAnthropic(data.image, data.mimeType, data.prompt, 1024);
   }
   if (data.action === 'readSlip') {
-    var slipPrompt = 'This is a Thai bank payment slip. Extract the total transfer amount. Look for: ยอดโอน, จำนวนเงิน, amount, total. Return ONLY valid JSON: {"amount": "4800.00"} Numbers only, no currency symbol, 2 decimal places.';
-    return callAnthropic(data.image, data.mimeType, slipPrompt, 256);
+    var slipPrompt = 'This is a Thai bank payment/transfer slip. Extract THREE fields: '
+      + '(1) amount — the total transfer amount (ยอดโอน/จำนวนเงิน/amount/total), numbers only, 2 decimals, no currency symbol. '
+      + '(2) reference — the transaction reference number / transaction id (รหัสอ้างอิง/เลขที่รายการ/หมายเลขอ้างอิง/Ref/Reference No.). Copy the exact code as printed (digits and letters only, drop spaces), or "" if none is visible. '
+      + '(3) date — the transfer date as YYYY-MM-DD. If the year is Thai Buddhist (e.g. 2569) convert by subtracting 543. Use "" if not visible. '
+      + 'Return ONLY valid JSON: {"amount":"4800.00","reference":"016287000123456","date":"2026-06-30"}';
+    return callAnthropic(data.image, data.mimeType, slipPrompt, 512);
   }
   if (data.action === 'savePending') {
     var r = savePendingToSheet(data);
@@ -40,6 +49,10 @@ function doPost(e) {
   }
   if (data.action === 'setOverdueDays') {
     var r = setOverdueDays(data.pending_id, data.days, data.updated_at, data.row);
+    return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
+  }
+  if (data.action === 'setSlipRef') {
+    var r = setSlipRef(data.pending_id, data.slip_ref, data.row);
     return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);
   }
   if (data.action === 'saveHistory') {
@@ -165,13 +178,14 @@ function savePendingToSheet(data) {
     var sheet = ss.getSheetByName(PENDING_TAB);
     if (!sheet) {
       sheet = ss.insertSheet(PENDING_TAB);
-      sheet.appendRow(['#','Store Code','Store Name','DC','Bill Amount','Invoice Date','Status','Created At','Updated At','Overdue Days','Staff']);
-      sheet.getRange(1,1,1,11).setFontWeight('bold').setBackground('#fef3c7');
+      sheet.appendRow(['#','Store Code','Store Name','DC','Bill Amount','Invoice Date','Status','Created At','Updated At','Overdue Days','Staff','Slip Ref']);
+      sheet.getRange(1,1,1,12).setFontWeight('bold').setBackground('#fef3c7');
       sheet.setFrozenRows(1);
     }
     // ensure/repair the newer headers (sheets created before these columns existed)
     sheet.getRange(1, 10).setValue('Overdue Days');
     sheet.getRange(1, 11).setValue('Staff');
+    sheet.getRange(1, 12).setValue('Slip Ref');
 
     // Scan once: find the last data row AND the highest existing # so the new
     // bill gets a number that was never used before. Reusing newRow-1 caused
@@ -298,6 +312,31 @@ function setOverdueDays(pendingId, days, updatedAt, rowHint) {
     return { success: true, days: d };
   } catch(err) {
     Logger.log('setOverdueDays error: ' + err);
+    return { success: false, error: err.toString() };
+  }
+}
+
+// ══════════════════════════════════════════════
+// PENDING TAB — setSlipRef
+// Stores the payment slip's transaction reference (col 12) so the client can
+// detect the SAME slip being attached to a second bill (wrong-slip guard).
+// ══════════════════════════════════════════════
+function setSlipRef(pendingId, ref, rowHint) {
+  try {
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+    var sheet = ss.getSheetByName(PENDING_TAB);
+    if (!sheet) return { success: false, error: 'Pending sheet not found' };
+
+    sheet.getRange(1, 12).setValue('Slip Ref'); // ensure/repair header
+
+    var targetRow = resolvePendingRow(sheet, rowHint, pendingId);
+    if (targetRow === -1) return { success: false, error: 'pending_id ' + pendingId + ' not found' };
+
+    sheet.getRange(targetRow, 12).setValue(ref || '');
+    Logger.log('Set slip ref row ' + targetRow + ' -> ' + ref);
+    return { success: true };
+  } catch(err) {
+    Logger.log('setSlipRef error: ' + err);
     return { success: false, error: err.toString() };
   }
 }
@@ -446,6 +485,126 @@ function saveOverdueToSheet(data) {
     return { success: false, error: err.toString() };
   }
 }
+
+// ══════════════════════════════════════════════
+// DAILY REMINDER EMAIL — bills still needing action for ผู้ดูแล จี๋
+// Emails a nightly summary (default ~21:45) of unpaid bills (pending + overdue)
+// whose Staff is จี๋ — see REMINDER_* config near the top of the file.
+//
+// SET UP ONCE on script.google.com:
+//   1) Project Settings → set Time zone = Asia/Bangkok (so 21:45 = Thai time)
+//   2) Run sendReminderNow() once  → authorize "send email as you", check inbox
+//   3) Run installReminderTrigger() once → Google then sends it daily on its own
+// No web-app redeploy is needed — triggers run against the saved script.
+// ══════════════════════════════════════════════
+function sendPendingReminder() {
+  try {
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+    var sheet = ss.getSheetByName(PENDING_TAB);
+    if (!sheet) { Logger.log('Reminder: no Pending tab'); return; }
+    var rows = sheet.getDataRange().getValues();
+    if (rows.length < 2) return;
+    var headers = rows[0];
+    function col(name) {
+      for (var i = 0; i < headers.length; i++) {
+        if (headers[i].toString().trim().toLowerCase() === name.toLowerCase()) return i;
+      }
+      return -1;
+    }
+    var cStore = col('Store Name'), cDC = col('DC'), cAmt = col('Bill Amount'),
+        cInv = col('Invoice Date'), cStatus = col('Status'), cStaff = col('Staff');
+
+    var bills = [], total = 0;
+    for (var i = 1; i < rows.length; i++) {
+      var r = rows[i];
+      if (!r[1]) continue; // blank/spacer row
+      var status = (cStatus > -1 ? r[cStatus] : '').toString().trim().toLowerCase();
+      if (REMINDER_STATUSES.indexOf(status) === -1) continue;
+      var staff = (cStaff > -1 ? r[cStaff] : '').toString();
+      var mine = false;
+      for (var k = 0; k < REMINDER_STAFF.length; k++) {
+        if (staff.indexOf(REMINDER_STAFF[k]) !== -1) { mine = true; break; }
+      }
+      if (!mine) continue;
+      var amt = parseFloat((cAmt > -1 ? r[cAmt] : '0').toString().replace(/[^0-9.]/g, '')) || 0;
+      total += amt;
+      bills.push({
+        store:   (cStore > -1 ? r[cStore] : '').toString(),
+        dc:      (cDC    > -1 ? r[cDC]    : '').toString(),
+        invoice: (cInv   > -1 ? r[cInv]   : '').toString(),
+        status:  status,
+        amount:  amt
+      });
+    }
+
+    if (!bills.length) { Logger.log('Reminder: nothing outstanding for ' + REMINDER_STAFF.join('/')); return; }
+
+    // overdue first (more urgent), then pending — each group oldest delivery first
+    bills.sort(function(a, c) {
+      if (a.status !== c.status) return a.status === 'overdue' ? -1 : 1;
+      return a.invoice < c.invoice ? -1 : (a.invoice > c.invoice ? 1 : 0);
+    });
+    var nOverdue = bills.filter(function(x){ return x.status === 'overdue'; }).length;
+    var nPending = bills.length - nOverdue;
+
+    var subject = '🔔 บิลค้างเก็บเงิน ' + bills.length + ' รายการ — รวม ฿' + fmtMoneyGS(total);
+    var html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937;max-width:600px">'
+      + '<h2 style="color:#b45309;margin:0 0 4px">🐱 TWD Auto Billing</h2>'
+      + '<p style="margin:0 0 14px;color:#6b7280">บิลที่ยังไม่ได้รับชำระ (ผู้ดูแล: จี๋) — '
+      + 'รอเก็บเงิน ' + nPending + ' • ค้างชำระ ' + nOverdue + '</p>'
+      + '<table cellspacing="0" cellpadding="8" style="border-collapse:collapse;width:100%">'
+      + '<tr style="background:#fef3c7;font-weight:bold;text-align:left">'
+      + '<td>ร้าน</td><td>DC</td><td>วันส่งของ</td><td>สถานะ</td><td style="text-align:right">ยอด</td></tr>';
+    for (var b = 0; b < bills.length; b++) {
+      var row = bills[b], bg = (b % 2) ? '#f9fafb' : '#ffffff';
+      var isOv = row.status === 'overdue';
+      var stTxt = isOv ? '😿 ค้างชำระ' : '🕒 รอเก็บเงิน';
+      var stCol = isOv ? '#b91c1c' : '#92400e';
+      html += '<tr style="background:' + bg + '">'
+        + '<td>' + htmlEsc(row.store) + '</td><td>' + htmlEsc(row.dc) + '</td>'
+        + '<td>' + fmtDateGS(row.invoice) + '</td>'
+        + '<td style="color:' + stCol + ';font-weight:bold">' + stTxt + '</td>'
+        + '<td style="text-align:right">฿' + fmtMoneyGS(row.amount) + '</td></tr>';
+    }
+    html += '<tr style="font-weight:bold;border-top:2px solid #b45309">'
+      + '<td colspan="4">รวม ' + bills.length + ' รายการ</td>'
+      + '<td style="text-align:right">฿' + fmtMoneyGS(total) + '</td></tr></table>'
+      + '<p style="margin:18px 0"><a href="https://chanrojpho.github.io/paymentautomation/" '
+      + 'style="background:#f59e0b;color:#fff;padding:11px 20px;border-radius:8px;text-decoration:none;font-weight:bold">เปิดแอปจัดการบิล →</a></p>'
+      + '<p style="color:#9ca3af;font-size:12px">อีเมลอัตโนมัติจากระบบ TWD Auto Billing • ส่งทุกวัน ~21:45</p></div>';
+
+    MailApp.sendEmail({ to: REMINDER_EMAIL, subject: subject, htmlBody: html });
+    Logger.log('Reminder sent to ' + REMINDER_EMAIL + ' (' + bills.length + ' bills, ฿' + fmtMoneyGS(total) + ')');
+  } catch(err) {
+    Logger.log('sendPendingReminder error: ' + err);
+  }
+}
+
+// thousands separator without relying on locale APIs (runtime-safe)
+function fmtMoneyGS(n) { return Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+// stored date (YYYY-MM-DD or other) -> DD/MM/YYYY for the email
+function fmtDateGS(v) {
+  if (!v) return '-';
+  var s = v.toString();
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : s;
+}
+// minimal HTML escape for store/DC names
+function htmlEsc(s) { return (s || '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// Run ONCE in the editor to schedule the nightly email (~21:45, project time zone).
+// Safe to re-run — removes any previous copy first.
+function installReminderTrigger() {
+  var trigs = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < trigs.length; i++) {
+    if (trigs[i].getHandlerFunction() === 'sendPendingReminder') ScriptApp.deleteTrigger(trigs[i]);
+  }
+  ScriptApp.newTrigger('sendPendingReminder').timeBased().everyDays(1).atHour(21).nearMinute(45).create();
+  Logger.log('Reminder trigger installed: every day ~21:45 (project time zone)');
+}
+
+// Manual test — sends the email right now so you can preview it / authorize.
+function sendReminderNow() { sendPendingReminder(); }
 
 // ══════════════════════════════════════════════
 // AI (Anthropic) — reused from V1
