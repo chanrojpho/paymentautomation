@@ -512,7 +512,12 @@ function sendPendingReminder() {
       return -1;
     }
     var cStore = col('Store Name'), cDC = col('DC'), cAmt = col('Bill Amount'),
-        cInv = col('Invoice Date'), cStatus = col('Status'), cStaff = col('Staff');
+        cInv = col('Invoice Date'), cStatus = col('Status'), cStaff = col('Staff'),
+        cOver = col('Overdue Days');
+
+    var now = new Date();
+    var todayMid = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // midnight, project tz (Bangkok)
+    var DAY_MS = 86400000;
 
     var bills = [], total = 0;
     for (var i = 1; i < rows.length; i++) {
@@ -526,14 +531,35 @@ function sendPendingReminder() {
         if (staff.indexOf(REMINDER_STAFF[k]) !== -1) { mine = true; break; }
       }
       if (!mine) continue;
+
+      // For overdue bills: only remind when the count is STALE — i.e. the promised
+      // payment date (Invoice Date + Overdue Days) has already passed and nobody
+      // bumped it. If still current for today, skip it. Pending bills always pass.
+      var invDate = (cInv > -1) ? toDateMid(r[cInv]) : null;
+      var recordedDays = null, actualOverdue = null;
+      if (status === 'overdue') {
+        var rec = parseInt((cOver > -1 ? r[cOver] : ''), 10);
+        recordedDays = isNaN(rec) ? null : rec;
+        if (invDate) {
+          actualOverdue = Math.round((todayMid - invDate) / DAY_MS);
+          if (recordedDays !== null) {
+            var due = new Date(invDate.getFullYear(), invDate.getMonth(), invDate.getDate() + recordedDays);
+            if (due >= todayMid) continue; // promised payment date still covers today -> not stale -> skip
+          }
+        }
+        // unparseable invoice, or no recorded days -> include (needs a human look)
+      }
+
       var amt = parseFloat((cAmt > -1 ? r[cAmt] : '0').toString().replace(/[^0-9.]/g, '')) || 0;
       total += amt;
       bills.push({
-        store:   (cStore > -1 ? r[cStore] : '').toString(),
-        dc:      (cDC    > -1 ? r[cDC]    : '').toString(),
-        invoice: (cInv   > -1 ? r[cInv]   : '').toString(),
-        status:  status,
-        amount:  amt
+        store:         (cStore > -1 ? r[cStore] : '').toString(),
+        dc:            (cDC    > -1 ? r[cDC]    : '').toString(),
+        invoice:       invDate ? ymd(invDate) : (cInv > -1 ? r[cInv] : '').toString(),
+        status:        status,
+        amount:        amt,
+        recordedDays:  recordedDays,
+        actualOverdue: actualOverdue
       });
     }
 
@@ -551,19 +577,26 @@ function sendPendingReminder() {
     var html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1f2937;max-width:600px">'
       + '<h2 style="color:#b45309;margin:0 0 4px">🐱 TWD Auto Billing</h2>'
       + '<p style="margin:0 0 14px;color:#6b7280">บิลที่ยังไม่ได้รับชำระ (ผู้ดูแล: จี๋) — '
-      + 'รอเก็บเงิน ' + nPending + ' • ค้างชำระ ' + nOverdue + '</p>'
+      + 'รอเก็บเงิน ' + nPending + ' • ค้างต้องต่ออายุ ' + nOverdue + '</p>'
       + '<table cellspacing="0" cellpadding="8" style="border-collapse:collapse;width:100%">'
       + '<tr style="background:#fef3c7;font-weight:bold;text-align:left">'
       + '<td>ร้าน</td><td>DC</td><td>วันส่งของ</td><td>สถานะ</td><td style="text-align:right">ยอด</td></tr>';
     for (var b = 0; b < bills.length; b++) {
       var row = bills[b], bg = (b % 2) ? '#f9fafb' : '#ffffff';
       var isOv = row.status === 'overdue';
-      var stTxt = isOv ? '😿 ค้างชำระ' : '🕒 รอเก็บเงิน';
-      var stCol = isOv ? '#b91c1c' : '#92400e';
+      var stCell;
+      if (isOv) {
+        var recTxt = (row.recordedDays === null) ? '—' : (row.recordedDays + ' วัน');
+        var actTxt = (row.actualOverdue === null) ? '?' : (row.actualOverdue + ' วัน');
+        stCell = '<td style="color:#b91c1c;font-weight:bold">😿 ต้องต่ออายุ'
+          + '<br><span style="font-weight:normal;color:#6b7280;font-size:12px">บันทึกไว้ ' + recTxt + ' → ควรเป็น ' + actTxt + '</span></td>';
+      } else {
+        stCell = '<td style="color:#92400e;font-weight:bold">🕒 รอเก็บเงิน</td>';
+      }
       html += '<tr style="background:' + bg + '">'
         + '<td>' + htmlEsc(row.store) + '</td><td>' + htmlEsc(row.dc) + '</td>'
         + '<td>' + fmtDateGS(row.invoice) + '</td>'
-        + '<td style="color:' + stCol + ';font-weight:bold">' + stTxt + '</td>'
+        + stCell
         + '<td style="text-align:right">฿' + fmtMoneyGS(row.amount) + '</td></tr>';
     }
     html += '<tr style="font-weight:bold;border-top:2px solid #b45309">'
@@ -582,15 +615,30 @@ function sendPendingReminder() {
 
 // thousands separator without relying on locale APIs (runtime-safe)
 function fmtMoneyGS(n) { return Math.round(n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
-// stored date (YYYY-MM-DD or other) -> DD/MM/YYYY for the email
+// stored date (real Date cell, YYYY-MM-DD, or other) -> DD/MM/YYYY for the email
 function fmtDateGS(v) {
-  if (!v) return '-';
-  var s = v.toString();
-  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : s;
+  if (v === '' || v == null) return '-';
+  var d = toDateMid(v);
+  return d ? (('0' + d.getDate()).slice(-2) + '/' + ('0' + (d.getMonth() + 1)).slice(-2) + '/' + d.getFullYear()) : v.toString();
 }
 // minimal HTML escape for store/DC names
 function htmlEsc(s) { return (s || '').toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+// Robust date reader: handles a real Date cell (Sheets returns Date objects for
+// date-formatted cells), a "YYYY-MM-DD" string, or other parseable strings.
+// Returns a Date at local (Bangkok) midnight, or null.
+function toDateMid(v) {
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : new Date(v.getFullYear(), v.getMonth(), v.getDate());
+  var s = (v == null ? '' : v).toString();
+  if (!s) return null;
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10));
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? null : new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+// Date -> "YYYY-MM-DD" string for diagnostic logging (or "null")
+function ymd(d) {
+  return d ? (d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2)) : 'null';
+}
 
 // Run ONCE in the editor to schedule the nightly email (~21:45, project time zone).
 // Safe to re-run — removes any previous copy first.
@@ -605,6 +653,17 @@ function installReminderTrigger() {
 
 // Manual test — sends the email right now so you can preview it / authorize.
 function sendReminderNow() { sendPendingReminder(); }
+
+// RUN THIS ONCE FIRST to grant permissions. No try/catch on purpose: the
+// uncaught authorization error is what makes Google show the consent dialog
+// (sendPendingReminder's try/catch swallows it, so it can never prompt).
+// Touches mail + trigger APIs so you authorize both send_mail and scriptapp
+// in a single Allow. After you click Allow, sendReminderNow() will work.
+function authorizeScopes() {
+  var quota = MailApp.getRemainingDailyQuota(); // -> needs script.send_mail
+  ScriptApp.getProjectTriggers();               // -> needs script.scriptapp
+  Logger.log('Authorized OK. Remaining email quota today: ' + quota);
+}
 
 // ══════════════════════════════════════════════
 // AI (Anthropic) — reused from V1
