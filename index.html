@@ -577,6 +577,12 @@ select.field-input { background-image: url("data:image/svg+xml,%3Csvg xmlns='htt
       <!-- Slip AI check result -->
       <div id="psSlipCheckBox" style="display:none; border-radius:14px; padding:14px 16px; margin-bottom:14px; font-size:15px; font-weight:700;"></div>
 
+      <!-- Wrong-slip guard: duplicate-ref / date warning -->
+      <div id="psSlipWarnBox" style="display:none; border-radius:14px; padding:12px 14px; margin-bottom:14px; font-size:14px; font-weight:700; background:#fee2e2; color:#b91c1c;"></div>
+
+      <!-- Confirmation pairing line: which bill this slip attaches to -->
+      <div id="psPairBox" style="display:none; border-radius:14px; padding:12px 14px; margin-bottom:14px; font-size:13px; line-height:1.6; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;"></div>
+
       <label class="cam-btn" id="psSlipCamBtn">
         <input type="file" id="psSlipFile" accept="image/*">
         <div class="cam-inner">
@@ -804,6 +810,9 @@ let currentPendingItem = null; // the Pending row being acted on
 let psSlipBase64 = null;
 let psSlipMime = null;
 let psSlipAmount = '';
+let psSlipRef = '';        // transaction reference read off the slip (wrong-slip guard)
+let psSlipDate = '';       // transfer date read off the slip (YYYY-MM-DD)
+let psSlipDupWarn = '';    // set when this slip's ref already belongs to another bill
 let ovState = {};
 let abBillBase64 = null;
 let abBillMime = null;
@@ -1534,6 +1543,7 @@ function startPaySlip(item, fromOverdue) {
   currentPendingItem = item;
   psFromOverdue = !!fromOverdue;
   psSlipBase64 = null; psSlipMime = null; psSlipAmount = '';
+  psSlipRef = ''; psSlipDate = ''; psSlipDupWarn = '';
 
   // Reset UI
   ['psSlipFile','psSlipFileGallery'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
@@ -1542,6 +1552,8 @@ function startPaySlip(item, fromOverdue) {
   document.getElementById('psSubmitBtn').disabled = true;
   clearStatus('psStatus');
   document.getElementById('psSlipCheckBox').style.display = 'none';
+  document.getElementById('psSlipWarnBox').style.display = 'none';
+  document.getElementById('psPairBox').style.display = 'none';
   document.getElementById('psSuccessScreen').classList.remove('show');
   document.querySelectorAll('#paySlipApp .screen').forEach(s => s.classList.remove('active'));
   document.getElementById('psScreen1').classList.add('active');
@@ -1601,6 +1613,8 @@ async function psReadSlipAmount() {
     const slipAmt = parseFloat(parsed.amount || '0');
     if (!slipAmt) throw new Error('อ่านยอดไม่ได้');
     psSlipAmount = parsed.amount || '';
+    psSlipRef = (parsed.reference || '').toString().replace(/\s+/g, '');
+    psSlipDate = (parsed.date || '').toString().trim();
 
     const billAmt = parseFloat((currentPendingItem?.bill_amount || '0').toString().replace(/[฿,\s]/g, ''));
     const slipFmt = fmtAmt(slipAmt);
@@ -1622,16 +1636,81 @@ async function psReadSlipAmount() {
       checkBox.innerHTML = `🧾 ยอดจากสลิป: <b>${slipFmt}</b>`;
       bannerSub.textContent = `ยอดจากสลิป: ${slipFmt}`;
     }
+    psRunSlipChecks();
   } catch(err) {
     checkBox.style.background = '#fef9c3'; checkBox.style.color = '#92400e';
     checkBox.innerHTML = '⚠️ AI อ่านยอดสลิปไม่ได้ — กรุณาตรวจสอบเอง';
     bannerSub.textContent = 'ตรวจสอบยอดด้วยตัวเอง';
+    psRunSlipChecks();
   }
+}
+
+// ══════════════════════════════════════════════
+// WRONG-SLIP GUARD (runs after AI reads the slip)
+//   A) duplicate-ref  — same slip already attached to another bill
+//   C) date sanity    — slip transferred before the delivery date
+//   + confirmation pairing line: shows exactly which bill this slip attaches to
+// All are SOFT warnings (never block) so a misread ref/date can't trap the user.
+// ══════════════════════════════════════════════
+function psFindDupSlip(ref, currentRow) {
+  if (!ref || ref.length < 6) return null;            // too short / unread -> can't trust it
+  const norm = ref.replace(/\s+/g, '').toLowerCase();
+  const all = (dashboardData && dashboardData.all) || [];
+  for (const r of all) {
+    if (String(r._row) === String(currentRow)) continue; // skip the bill we're paying now
+    const other = (r.slip_ref || '').toString().replace(/\s+/g, '').toLowerCase();
+    if (other && other === norm) return r;
+  }
+  return null;
+}
+
+function psRunSlipChecks() {
+  const item = currentPendingItem || {};
+  const warnBox = document.getElementById('psSlipWarnBox');
+  const pairBox = document.getElementById('psPairBox');
+  const warns = [];
+  psSlipDupWarn = '';
+
+  // A) same slip already used on another bill
+  const dup = psFindDupSlip(psSlipRef, item._row);
+  if (dup) {
+    psSlipDupWarn = `สลิปนี้ (ref ${psSlipRef}) ถูกใช้กับบิล "${dup.store_name || dup.store_code || '?'}" ` +
+                    `(ส่งของ ${fmtDate(dup.invoice_date)}) ไปแล้ว`;
+    warns.push('⚠️ ' + psSlipDupWarn);
+  }
+
+  // C) slip transferred before the delivery date = impossible -> likely wrong slip
+  if (psSlipDate && item.invoice_date) {
+    const s = new Date(psSlipDate), inv = new Date(item.invoice_date);
+    if (!isNaN(s) && !isNaN(inv) && s < inv) {
+      warns.push(`⚠️ วันที่โอน (${fmtDate(psSlipDate)}) มาก่อนวันส่งของ (${fmtDate(item.invoice_date)}) — ตรวจสอบว่าสลิปถูกบิลไหม`);
+    }
+  }
+
+  if (warns.length) {
+    warnBox.innerHTML = warns.join('<br>');
+    warnBox.style.display = 'block';
+  } else {
+    warnBox.style.display = 'none';
+  }
+
+  // Confirmation pairing line — eyeball that this slip belongs to this bill
+  pairBox.innerHTML =
+    `🔗 <b>ตรวจสอบก่อนส่ง</b><br>` +
+    `บิล: <b>${item.store_name || '—'}</b> • ส่งของ ${fmtDate(item.invoice_date)} • ${fmtAmt(item.bill_amount)}<br>` +
+    `สลิป: โอน ${psSlipDate ? fmtDate(psSlipDate) : '—'} • ref ${psSlipRef || '—'}`;
+  pairBox.style.display = 'block';
 }
 
 async function psSubmit() {
   if (!psSlipBase64) { showStatus('psStatus','error','กรุณาอัปโหลดสลิปก่อน'); return; }
   const item = currentPendingItem;
+
+  // Wrong-slip guard: if this exact slip already belongs to another bill, make
+  // the user explicitly confirm before sending it again (soft, never blocks).
+  if (psSlipDupWarn && !confirm('⚠️ ' + psSlipDupWarn + '\n\nต้องการส่งสลิปนี้ต่อหรือไม่?')) {
+    return;
+  }
 
   const btn = document.getElementById('psSubmitBtn');
   btn.disabled = true;
@@ -1671,6 +1750,17 @@ async function psSubmit() {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'saveHistory', delivery_date: item.invoice_date, dc_name: item.dc_name, store_code: item.store_code, store_name: item.store_name, amount, sentAt })
     });
+
+    // Remember this slip's reference on the bill so the same slip can't be
+    // silently attached to another bill later (wrong-slip guard). Update the
+    // in-memory row too, so a second slip uploaded right after sees it.
+    if (psSlipRef) {
+      item.slip_ref = psSlipRef;
+      await fetch(GAS_URL, {
+        method: 'POST', headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'setSlipRef', pending_id: item['#'] || item._row, slip_ref: psSlipRef, row: item._row })
+      });
+    }
 
     // Show success
     document.getElementById('ps_rec_store').textContent = item.store_name;
