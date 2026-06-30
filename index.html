@@ -1639,7 +1639,8 @@ async function psReadSlipAmount() {
     psRunSlipChecks();
   } catch(err) {
     checkBox.style.background = '#fef9c3'; checkBox.style.color = '#92400e';
-    checkBox.innerHTML = '⚠️ AI อ่านยอดสลิปไม่ได้ — กรุณาตรวจสอบเอง';
+    checkBox.innerHTML = '⚠️ AI อ่านยอดสลิปไม่ได้ — กรุณาตรวจสอบเอง'
+      + '<br><span style="font-weight:normal;font-size:12px;opacity:0.85">(' + ((err && err.message) ? err.message : 'unknown') + ')</span>';
     bannerSub.textContent = 'ตรวจสอบยอดด้วยตัวเอง';
     psRunSlipChecks();
   }
