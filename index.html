@@ -849,6 +849,25 @@ function fmtDate(str) {
   } catch(e) {}
   return str;
 }
+// D/M/YYYY (Gregorian, no leading zeros) — the format ตะวันแดง uses, e.g.
+// 30/6/2026. getPending returns the Invoice Date as a verbose JS Date string
+// (the sheet cell is a real Date), e.g. "Mon Jun 29 2026 00:00:00 GMT+0700
+// (Indochina Time)". Sending that made ตะวันแดง render the date unlike everyone
+// else and fall back to the upload date on the slip. Normalize every date we
+// send them to D/M/YYYY so the delivery date shows correctly (= the delivery
+// date, not the upload date).
+function toTWDDate(v) {
+  if (!v && v !== 0) return '';
+  const s = String(v).trim();
+  if (!s || s === 'TEST') return '';
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/); // already D/M/YYYY — just drop any padding
+  if (m) return `${+m[1]}/${+m[2]}/${m[3]}`;
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);           // ISO YYYY-MM-DD (no tz shift)
+  if (m) return `${+m[3]}/${+m[2]}/${m[1]}`;
+  const d = new Date(s);                             // verbose JS Date string, etc.
+  if (isNaN(d)) return s;                            // unknown format — pass through untouched
+  return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+}
 function fmtTime(str) {
   if (!str || str === 'TEST') return '—';
   if (str.includes('/')) return str;
@@ -1243,7 +1262,7 @@ async function ovSetDays(pendingId, days) {
         ceostaff_name: staff.fullName || '', position: staff.position || '',
         sales_area: staff.area || '', line_id: staff.lineId || '',
         dc_name: item.dc_name, amount: item.bill_amount,
-        invoice_date: item.invoice_date, payment_due_date: dueISO
+        invoice_date: toTWDDate(item.invoice_date), payment_due_date: toTWDDate(dueISO)
       })
     });
     const result = await res.json();
@@ -1255,7 +1274,7 @@ async function ovSetDays(pendingId, days) {
     await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify({ action: 'saveOverdue', customer_code: item.store_code, customer_name: item.store_name,
         ceostaff_name: staff.fullName || '', position: staff.position || '', sales_area: staff.area || '', line_id: staff.lineId || '',
-        dc_name: item.dc_name, amount: item.bill_amount, invoice_date: item.invoice_date, payment_due_date: dueISO, sentAt }) });
+        dc_name: item.dc_name, amount: item.bill_amount, invoice_date: toTWDDate(item.invoice_date), payment_due_date: toTWDDate(dueISO), sentAt }) });
 
     await loadDashboard();
   } catch(err) {
@@ -1721,7 +1740,7 @@ async function psSubmit() {
   try {
     // Submit slip to ตะวันแดง via GAS
     const payload = {
-      delivery_date: item.invoice_date || '',
+      delivery_date: toTWDDate(item.invoice_date),
       dc_name: item.dc_name,
       store_code: item.store_code,
       store_name: item.store_name,
@@ -1749,7 +1768,7 @@ async function psSubmit() {
     // Save to Bill Upload tab
     await fetch(GAS_URL, {
       method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'saveHistory', delivery_date: item.invoice_date, dc_name: item.dc_name, store_code: item.store_code, store_name: item.store_name, amount, sentAt })
+      body: JSON.stringify({ action: 'saveHistory', delivery_date: toTWDDate(item.invoice_date), dc_name: item.dc_name, store_code: item.store_code, store_name: item.store_name, amount, sentAt })
     });
 
     // Remember this slip's reference on the bill so the same slip can't be
@@ -1914,7 +1933,7 @@ async function ovSubmit() {
         ceostaff_name: staff.fullName || s.staffKey,
         position: staff.position || '', sales_area: staff.area || '', line_id: staff.lineId || '',
         dc_name: s.dcName, amount: s.billAmount,
-        invoice_date: s.invoiceDate, payment_due_date: s.paymentDueDate
+        invoice_date: toTWDDate(s.invoiceDate), payment_due_date: toTWDDate(s.paymentDueDate)
       })
     });
     const result = await res.json();
@@ -1943,7 +1962,7 @@ async function ovSubmit() {
         ceostaff_name: staff.fullName || s.staffKey,
         position: staff.position || '', sales_area: staff.area || '', line_id: staff.lineId || '',
         dc_name: s.dcName, amount: s.billAmount,
-        invoice_date: s.invoiceDate, payment_due_date: s.paymentDueDate, sentAt
+        invoice_date: toTWDDate(s.invoiceDate), payment_due_date: toTWDDate(s.paymentDueDate), sentAt
       })
     });
 
